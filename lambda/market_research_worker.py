@@ -1,145 +1,312 @@
 import json
 import logging
 import os
-import boto3
 from datetime import datetime
+
+import boto3
+from anthropic import Anthropic
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
-dynamodb = boto3.resource('dynamodb')
+dynamodb = boto3.resource("dynamodb")
+lambda_client = boto3.client("lambda")
 
 # Get environment variables
-JOBS_TABLE_NAME = os.environ['JOBS_TABLE_NAME']
+JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
+ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+OBSTACLES_AGENT_NAME = os.environ["OBSTACLES_AGENT_NAME"]
+SOLUTIONS_AGENT_NAME = os.environ["SOLUTIONS_AGENT_NAME"]
+LEGAL_AGENT_NAME = os.environ["LEGAL_AGENT_NAME"]
+COMPETITOR_AGENT_NAME = os.environ["COMPETITOR_AGENT_NAME"]
+MARKET_AGENT_NAME = os.environ["MARKET_AGENT_NAME"]
 
 # Get table reference
 jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
 
+# Initialize Anthropic client
+anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
+
 
 def handler(event, context):
     """
-    Market Research worker Lambda that processes messages from the queue.
+    Market Research Orchestrator: Coordinates 5 research agents sequentially.
+
+    Flow: Obstacles → Solutions → Legal → Competitor → Market → Synthesis
     """
-    logger.info(f"Received event: {json.dumps(event)}")
-    
+    logger.info(f"Market Research Orchestrator received event: {json.dumps(event)}")
+
     try:
-        for record in event['Records']:
+        for record in event["Records"]:
             # Parse the SQS message
-            message_body = json.loads(record['body'])
-            job_id = message_body['job_id']
-            instructions = message_body['instructions']
-            
-            logger.info(f"Processing Market Research job {job_id}")
-            
+            message_body = json.loads(record["body"])
+            job_id = message_body["job_id"]
+            instructions = message_body["instructions"]
+
+            logger.info(f"Starting market research orchestration for job {job_id}")
+
             # Update job status to processing
             jobs_table.update_item(
-                Key={'id': job_id},
+                Key={"id": job_id},
                 UpdateExpression=(
-                    'SET #status = :status, updated_at = :updated_at'
+                    "SET #status = :status, "
+                    "started_at = :started_at, "
+                    "updated_at = :updated_at"
                 ),
-                ExpressionAttributeNames={
-                    '#status': 'status'
-                },
+                ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
-                    ':status': 'processing',
-                    ':updated_at': datetime.utcnow().isoformat()
-                }
-            )
-            
-            # TODO: Add your market research logic here
-            # For now, we'll simulate some work
-            result = process_market_research_job(instructions)
-            
-            # Update job with result
-            jobs_table.update_item(
-                Key={'id': job_id},
-                UpdateExpression=(
-                    'SET #status = :status, '
-                    '#result = :result, '
-                    'updated_at = :updated_at'
-                ),
-                ExpressionAttributeNames={
-                    '#status': 'status',
-                    '#result': 'result'
+                    ":status": "processing",
+                    ":started_at": datetime.utcnow().isoformat(),
+                    ":updated_at": datetime.utcnow().isoformat(),
                 },
-                ExpressionAttributeValues={
-                    ':status': 'completed',
-                    ':result': result,
-                    ':updated_at': datetime.utcnow().isoformat()
-                }
             )
-            
-            logger.info(f"Completed Market Research job {job_id}")
-        
-        return {
-            'statusCode': 200,
-            'body': json.dumps('Successfully processed messages')
-        }
-        
-    except Exception as e:
-        logger.error(
-            f"Error processing Market Research job: {str(e)}",
-            exc_info=True
-        )
-        
-        # Try to update job status to failed
-        if 'job_id' in locals():
+
+            # Execute agents sequentially
             try:
-                jobs_table.update_item(
-                    Key={'id': job_id},
-                    UpdateExpression=(
-                        'SET #status = :status, '
-                        '#result = :result, '
-                        'updated_at = :updated_at'
-                    ),
-                    ExpressionAttributeNames={
-                        '#status': 'status',
-                        '#result': 'result'
+                # Agent 1: Obstacles
+                logger.info(f"Invoking Obstacles Agent for job {job_id}")
+                obstacles_response = invoke_agent(
+                    OBSTACLES_AGENT_NAME, {"job_id": job_id, "problem_context": instructions}
+                )
+                obstacles_findings = extract_findings(obstacles_response)
+                logger.info(f"Obstacles Agent completed for job {job_id}")
+
+                # Agent 2: Solutions
+                logger.info(f"Invoking Solutions Agent for job {job_id}")
+                solutions_response = invoke_agent(
+                    SOLUTIONS_AGENT_NAME,
+                    {
+                        "job_id": job_id,
+                        "problem_context": instructions,
+                        "obstacles_findings": obstacles_findings,
                     },
+                )
+                solutions_findings = extract_findings(solutions_response)
+                logger.info(f"Solutions Agent completed for job {job_id}")
+
+                # Agent 3: Legal
+                logger.info(f"Invoking Legal Agent for job {job_id}")
+                legal_response = invoke_agent(
+                    LEGAL_AGENT_NAME,
+                    {
+                        "job_id": job_id,
+                        "problem_context": instructions,
+                        "obstacles_findings": obstacles_findings,
+                        "solutions_findings": solutions_findings,
+                    },
+                )
+                legal_findings = extract_findings(legal_response)
+                logger.info(f"Legal Agent completed for job {job_id}")
+
+                # Agent 4: Competitor
+                logger.info(f"Invoking Competitor Agent for job {job_id}")
+                competitor_response = invoke_agent(
+                    COMPETITOR_AGENT_NAME,
+                    {
+                        "job_id": job_id,
+                        "problem_context": instructions,
+                        "obstacles_findings": obstacles_findings,
+                        "solutions_findings": solutions_findings,
+                        "legal_findings": legal_findings,
+                    },
+                )
+                competitor_findings = extract_findings(competitor_response)
+                logger.info(f"Competitor Agent completed for job {job_id}")
+
+                # Agent 5: Market
+                logger.info(f"Invoking Market Agent for job {job_id}")
+                market_response = invoke_agent(
+                    MARKET_AGENT_NAME,
+                    {
+                        "job_id": job_id,
+                        "problem_context": instructions,
+                        "obstacles_findings": obstacles_findings,
+                        "solutions_findings": solutions_findings,
+                        "legal_findings": legal_findings,
+                        "competitor_findings": competitor_findings,
+                    },
+                )
+                market_findings = extract_findings(market_response)
+                logger.info(f"Market Agent completed for job {job_id}")
+
+                # Synthesis: Generate executive summary
+                logger.info(f"Generating synthesis for job {job_id}")
+                synthesis = generate_synthesis(
+                    instructions,
+                    obstacles_findings,
+                    solutions_findings,
+                    legal_findings,
+                    competitor_findings,
+                    market_findings,
+                )
+
+                # Update job with final result
+                final_result = {
+                    "problem_context": instructions,
+                    "findings": {
+                        "obstacles": obstacles_findings,
+                        "solutions": solutions_findings,
+                        "legal": legal_findings,
+                        "competitors": competitor_findings,
+                        "market": market_findings,
+                    },
+                    "synthesis": synthesis,
+                    "completed_at": datetime.utcnow().isoformat(),
+                }
+
+                jobs_table.update_item(
+                    Key={"id": job_id},
+                    UpdateExpression=(
+                        "SET #status = :status, "
+                        "#result = :result, "
+                        "completed_at = :completed_at, "
+                        "updated_at = :updated_at"
+                    ),
+                    ExpressionAttributeNames={"#status": "status", "#result": "result"},
                     ExpressionAttributeValues={
-                        ':status': 'failed',
-                        ':result': f'Error: {str(e)}',
-                        ':updated_at': datetime.utcnow().isoformat()
-                    }
+                        ":status": "completed",
+                        ":result": json.dumps(final_result),
+                        ":completed_at": datetime.utcnow().isoformat(),
+                        ":updated_at": datetime.utcnow().isoformat(),
+                    },
                 )
-            except Exception as update_error:
+
+                logger.info(
+                    f"Market research orchestration completed successfully for job {job_id}"
+                )
+
+            except Exception as agent_error:
                 logger.error(
-                    f"Failed to update job status: {str(update_error)}"
+                    f"Agent execution failed for job {job_id}: {str(agent_error)}", exc_info=True
                 )
-        
+
+                # Update job status to failed
+                jobs_table.update_item(
+                    Key={"id": job_id},
+                    UpdateExpression=(
+                        "SET #status = :status, "
+                        "error_message = :error, "
+                        "updated_at = :updated_at"
+                    ),
+                    ExpressionAttributeNames={"#status": "status"},
+                    ExpressionAttributeValues={
+                        ":status": "failed",
+                        ":error": str(agent_error),
+                        ":updated_at": datetime.utcnow().isoformat(),
+                    },
+                )
+                raise
+
+        return {"statusCode": 200, "body": json.dumps("Successfully processed messages")}
+
+    except Exception as e:
+        logger.error(f"Error in orchestrator: {str(e)}", exc_info=True)
         raise
 
 
-def process_market_research_job(instructions):
+def invoke_agent(function_name, payload):
     """
-    Process the market research job based on instructions.
-    This is a placeholder - implement your actual logic here.
+    Invoke an agent Lambda function synchronously.
     """
-    logger.info(f"Processing market research instructions: {instructions}")
-    
-    # TODO: Implement actual market research logic
-    # For example:
-    # - Analyze market trends
-    # - Gather competitor data
-    # - Research industry insights
-    # - Call external APIs for market data
-    
-    result = {
-        'message': 'Market research job processed successfully',
-        'instructions': instructions,
-        'analysis': {
-            'market_size': '$10B estimated market',
-            'growth_rate': '15% YoY',
-            'competitors': ['Competitor A', 'Competitor B', 'Competitor C'],
-            'trends': ['Trend 1', 'Trend 2', 'Trend 3']
-        },
-        'recommendations': [
-            'Focus on emerging markets',
-            'Invest in technology differentiation',
-            'Consider strategic partnerships'
-        ]
-    }
-    
-    return json.dumps(result)
+    logger.info(f"Invoking Lambda function: {function_name}")
 
+    response = lambda_client.invoke(
+        FunctionName=function_name,
+        InvocationType="RequestResponse",  # Synchronous
+        Payload=json.dumps(payload),
+    )
+
+    # Parse response
+    response_payload = json.loads(response["Payload"].read())
+
+    if response["StatusCode"] != 200:
+        raise Exception(f"Agent {function_name} returned status {response['StatusCode']}")
+
+    if "FunctionError" in response:
+        error_msg = response_payload.get("errorMessage", "Unknown error")
+        raise Exception(f"Agent {function_name} failed: {error_msg}")
+
+    logger.info(f"Lambda function {function_name} completed successfully")
+    return response_payload
+
+
+def extract_findings(agent_response):
+    """
+    Extract findings from agent Lambda response.
+    """
+    try:
+        body = agent_response.get("body")
+        if isinstance(body, str):
+            body = json.loads(body)
+
+        return body.get("findings", {})
+    except Exception as e:
+        logger.warning(f"Could not extract findings from response: {e}")
+        return {}
+
+
+def generate_synthesis(problem_context, obstacles, solutions, legal, competitors, market):
+    """
+    Generate executive summary synthesizing all research findings.
+    """
+    system_prompt = """You are an executive business analyst creating a comprehensive market research report.
+
+Your role is to synthesize findings from 5 research agents into a clear, actionable executive summary.
+
+The summary should:
+1. Start with a brief problem statement
+2. Summarize key obstacles and challenges
+3. Analyze existing solutions and their gaps
+4. Highlight critical legal/regulatory considerations
+5. Assess the competitive landscape
+6. Quantify market opportunity
+7. Provide strategic recommendations
+
+Write in clear, professional prose. Use bullet points for key insights. Focus on actionable intelligence.
+
+Aim for 800-1200 words. Include specific data points and sources where relevant."""
+
+    all_findings = f"""
+PROBLEM CONTEXT:
+{problem_context}
+
+OBSTACLES FINDINGS:
+{json.dumps(obstacles, indent=2)}
+
+SOLUTIONS FINDINGS:
+{json.dumps(solutions, indent=2)}
+
+LEGAL/REGULATORY FINDINGS:
+{json.dumps(legal, indent=2)}
+
+COMPETITIVE LANDSCAPE:
+{json.dumps(competitors, indent=2)}
+
+MARKET ANALYSIS:
+{json.dumps(market, indent=2)}
+"""
+
+    user_prompt = f"""Please synthesize the following market research findings into a comprehensive executive summary.
+
+{all_findings}
+
+Create a well-structured report that tells the complete story and provides actionable insights."""
+
+    logger.info("Generating synthesis with Claude API...")
+
+    response = anthropic.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=4000,
+        temperature=0.4,  # Slightly higher for better prose
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+
+    # Extract text from response
+    synthesis_text = ""
+    for block in response.content:
+        if block.type == "text":
+            synthesis_text += block.text
+
+    return synthesis_text

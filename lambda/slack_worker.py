@@ -1,11 +1,12 @@
 import json
 import logging
 import os
-import boto3
 from datetime import datetime
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from anthropic import Anthropic
+
+import boto3
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -19,7 +20,7 @@ anthropic_client = Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
 slack_client = WebClient(token=os.environ.get('SLACK_BOT_TOKEN'))
 
 # Get environment variables
-JOBS_TABLE_NAME = os.environ['JOBS_TABLE_NAME']
+JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
 
 # Get table reference
 jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
@@ -215,3 +216,11 @@ def lambda_handler(event, context):
 
 
 
+    result = {
+        "message": "Slack job processed successfully",
+        "instructions": instructions,
+        "action": "Simulated Slack notification sent",
+        "channels_notified": ["#general", "#notifications"],
+    }
+
+    return json.dumps(result)

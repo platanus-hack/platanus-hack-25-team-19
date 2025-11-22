@@ -1,10 +1,56 @@
 *.swp
 package-lock.json
-__pycache__
-.pytest_cache
-.venv
-*.egg-info
 
-# CDK asset staging directory
-.cdk.staging
-cdk.out
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CDK
+.cdk.staging/
+cdk.out/
+
+# Lambda layer
+lambda/layer/python/
