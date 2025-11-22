@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from shared.anthropic import Anthropic, ConversationMessage
+from datetime import datetime
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -149,7 +150,8 @@ Focus on quantitative data with clear sources. Be specific with numbers, time pe
     response = anthropic.send_message(
         messages=[ConversationMessage(
             role="user",
-            content=user_prompt
+            content=user_prompt,
+            timestamp=datetime.utcnow().isoformat()
         )],
         system=system_prompt,
         tools=[

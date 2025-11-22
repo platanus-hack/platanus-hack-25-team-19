@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from shared.anthropic import Anthropic, ConversationMessage
+from datetime import datetime
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -106,7 +107,8 @@ Focus on finding concrete, real-world examples with sources."""
     response = anthropic.send_message(
         messages=[ConversationMessage(
             role="user",
-            content=user_prompt
+            content=user_prompt,
+            timestamp=datetime.utcnow().isoformat()
         )],
         system=system_prompt,
         tools=[
