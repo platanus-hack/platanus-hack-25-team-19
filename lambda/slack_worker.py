@@ -1,14 +1,8 @@
 import json
 import logging
 import os
-<<<<<<< Updated upstream
 from shared.slack import SlackHelper
-from anthropic import Anthropic
-=======
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 from shared.anthropic import Anthropic, ConversationMessage
->>>>>>> Stashed changes
 
 import boto3
 
