@@ -1,11 +1,11 @@
 import json
 import logging
 import os
-import uuid
 import boto3
 from datetime import datetime
 from typing import Dict, Any, List
 from shared.anthropic import Anthropic, ConversationMessage
+from shared.job_model import JobModel, JobHandler
 
 def get_organization_registry() -> List[Dict[str, Any]]:
     """Get organization data with fallback for when module is not available."""
@@ -175,17 +175,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             }
 
         # 2. Construct the User Prompt Content and API Payload
-        user_prompt = (
-            "Analyze the following project problem declaration and the internal company registry data to generate the complete execution order.\n\n"
-            "--- FULL PROBLEM DECLARATION (CONTEXT):\n"
-            f"{full_declaration}\n\n"
-            "--- INTERNAL REGISTRY DATA (FOR CONTACT MAPPING):\n"
-            f"{internal_registry}\n\n"
-            "Proceed with the 3-step analysis (Classification, Activation Logic, Content Generation) and return the output STRICTLY in the required JSON schema."
-        )
+        USER_PROMPT = f'''
+            Analyze the following project problem declaration and the internal company registry data to generate the complete execution order.
+
+            --- FULL PROBLEM DECLARATION (CONTEXT):
+            {full_declaration}
+
+            --- INTERNAL REGISTRY DATA (FOR CONTACT MAPPING):
+            {internal_registry}
+
+            Proceed with the 3-step analysis (Classification, Activation Logic, Content Generation) and return the output STRICTLY in the required JSON schema.
+        '''
 
         # 3. Execute the AI Orchestration
-        orchestrated_result = call_anthropic_with_jobs(SYSTEM_INSTRUCTION, user_prompt)
+        orchestrated_result = call_anthropic_with_jobs(SYSTEM_INSTRUCTION, USER_PROMPT)
 
         # 4. Job Persistence (DynamoDB) and SQS Fan-Out Execution
         triggered_jobs = []
@@ -203,43 +206,31 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 queue_url = SQS_MAPPING.get(job_key)
 
                 if queue_url:
-                    job_id = str(uuid.uuid4())
+                    job_item = JobModel(
+                        status='CREATED',
+                        job_type=job_key,
+                        instructions=json.dumps(job_payload),
+                        context_summary=context_summary,
+                        created_at=current_time,
+                        updated_at=current_time
+                    )
 
-                    # A) CREATE JOB RECORD (DynamoDB Persistence)
-                    job_item = {
-                        'id': job_id,
-                        'status': 'CREATED',
-                        # Store the full, complex AI instructions as a string
-                        'instructions': json.dumps(job_payload),
-                        'context_summary': context_summary,
-                        'type': job_key, # ADI, ECG, or VEE
-                        'result': '',
-                        'created_at': current_time,
-                        'updated_at': current_time
-                    }
+                    JobHandler(JOBS_TABLE_NAME).create(job=job_item)
 
-                    jobs_table.put_item(Item=job_item)
-                    logger.info(f"Created job {job_id} ({job_key}) in DynamoDB")
+                    logger.info(f"Created job {job_item.id} ({job_key}) in DynamoDB")
 
                     # B) SQS FAN-OUT: Send the job ID and type to the execution queue
                     message_body = {
-                        'job_id': job_id,
-                        'type': job_key,
-                        # The worker Lambda will retrieve instructions from DynamoDB using the job_id
+                        'job_id': job_item.id,
                     }
 
                     sqs.send_message(
                         QueueUrl=queue_url,
                         MessageBody=json.dumps(message_body)
                     )
-                    logger.info(f"Sent message for job {job_id} to {job_key} queue")
+                    logger.info(f"Sent message for job {job_item.id} to {job_key} queue")
 
-                    created_job = {
-                        'job_id': job_id,
-                        'status': 'CREATED',
-                        'instructions': job_payload
-                    }
-                    triggered_jobs.append(created_job)
+                    triggered_jobs.append(job_item)
                 else:
                     logger.warning(f"Job {job_key} activated but no SQS URL found in map.")
 
