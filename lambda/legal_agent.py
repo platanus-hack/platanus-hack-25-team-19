@@ -10,7 +10,7 @@ logger.setLevel(logging.INFO)
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 
 # Initialize Anthropic client
-anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
+client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
 
 def handler(event, context):
@@ -114,11 +114,10 @@ Provide specific, actionable information with sources."""
 
     logger.info("Calling Claude API for legal analysis...")
 
-    response = anthropic.send_message(
-        messages=[ConversationMessage(
-            role="user",
-            content=user_prompt
-        )],
+    response = client.create_message(
+        model="claude-sonnet-4-20250514",
+        max_tokens=4000,
+        temperature=0.3,
         system=system_prompt,
         tools=[
             {

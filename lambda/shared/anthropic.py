@@ -17,9 +17,88 @@ class ConversationMessage:
     content: str
     timestamp: str
 
+class ContentBlock:
+    """Represents a content block in the response"""
+    def __init__(self, block_data):
+        self.type = block_data.get('type')
+        if self.type == 'text':
+            self.text = block_data.get('text', '')
+        elif self.type == 'tool_use':
+            self.id = block_data.get('id')
+            self.name = block_data.get('name')
+            self.input = block_data.get('input', {})
+
+class MessageResponse:
+    """Response object that mimics the Anthropic SDK response format"""
+    def __init__(self, response_data):
+        self.content = [ContentBlock(block) for block in response_data.get('content', [])]
+        self.id = response_data.get('id')
+        self.model = response_data.get('model')
+        self.role = response_data.get('role')
+        self.stop_reason = response_data.get('stop_reason')
+        self.usage = response_data.get('usage', {})
+
 class Anthropic():
     def __init__(self, api_key):
         self.api_key = api_key
+
+    def create_message(self, model: str, max_tokens: int, temperature: float = 0.7, system: str | None = None, messages: list = None, tools: list | None = None):
+        """
+        Create a message using simple message dicts (for agents).
+        Returns a MessageResponse object with .content blocks.
+
+        Args:
+            model: Model identifier
+            max_tokens: Maximum tokens in response
+            temperature: Sampling temperature
+            system: System prompt
+            messages: List of message dicts with 'role' and 'content' keys
+            tools: Optional list of tool definitions
+
+        Returns:
+            MessageResponse object with .content attribute
+        """
+        logger.info(f'Creating message with model {model}')
+
+        # Prepare the request
+        url = 'https://api.anthropic.com/v1/messages'
+        headers = {
+            'x-api-key': self.api_key,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        }
+
+        payload = {
+            'model': model,
+            'max_tokens': max_tokens,
+            'temperature': temperature,
+            'messages': messages or []
+        }
+
+        # Add system instruction if provided
+        if system:
+            payload['system'] = system
+
+        # Add tools if provided
+        if tools:
+            payload['tools'] = tools
+
+        # Make the HTTP request
+        data = json.dumps(payload).encode('utf-8')
+        request = urllib.request.Request(url, data=data, headers=headers, method='POST')
+
+        try:
+            with urllib.request.urlopen(request) as response:
+                response_data = json.loads(response.read().decode('utf-8'))
+                return MessageResponse(response_data)
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            logger.error(f'Anthropic API error: {e.code} - {error_body}')
+            raise
+        except Exception as e:
+            logger.error(f'Error calling Anthropic API: {str(e)}')
+            raise
 
     def send_message(self, messages: list[ConversationMessage], system: str | None = None, tools: list | None = None):
         '''

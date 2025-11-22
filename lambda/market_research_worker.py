@@ -279,12 +279,12 @@ Create a well-structured report that tells the complete story and provides actio
 
     logger.info("Generating synthesis with Claude API...")
 
-    response = anthropic.send_message(
-        messages=[ConversationMessage(
-            role="user",
-            content=user_prompt
-        )],
-        system=system_prompt
+    response = anthropic.create_message(
+        model="claude-sonnet-4-20250514",
+        max_tokens=4000,
+        temperature=0.4,  # Slightly higher for better prose
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
     )
 
     # Extract text from response
