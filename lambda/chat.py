@@ -177,8 +177,9 @@ def handler(event, context):
         # Parse JSON response to extract message and temperature
         try:
             response_data = json.loads(ai_response)
+            print("Temperature: ", response_data.get('temperature'))
             message_content = response_data.get('message', ai_response)  # Fallback to full response
-            temperature_score = response_data.get('temperature', 5)  # Default to 5 if missing
+            temperature_score = response_data.get('temperature')  # Default to 5 if missing
         except json.JSONDecodeError:
             # If AI doesn't return valid JSON, use full response as message and default temperature
             logger.warning("AI response was not valid JSON, using fallback")
