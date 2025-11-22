@@ -1,10 +1,8 @@
 import json
 import logging
 import os
-from datetime import datetime
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-from anthropic import Anthropic
+from shared.slack import SlackHelper
+from shared.anthropic import Anthropic, ConversationMessage
 
 import boto3
 
@@ -17,7 +15,7 @@ sqs = boto3.client('sqs')
 
 # Initialize external service clients
 anthropic_client = Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-slack_client = WebClient(token=os.environ.get('SLACK_BOT_TOKEN'))
+slack_client = SlackHelper(token=os.environ.get('SLACK_BOT_TOKEN'))
 
 # Get environment variables
 JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
@@ -27,70 +25,27 @@ jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
 conversations_table = dynamodb.Table(os.environ['CONVERSATIONS_TABLE_NAME'])
 
 def extract_email_and_question_claude(text):
-    """Extracts email and question using Claude 3 Haiku."""
+    """Extracts email and question using Claude via the anthropic helper."""
     prompt = f"""
     Instruction: "{text}"
     Task: Extract target email and question.
     Output JSON only: keys "email", "question".
     """
     try:
-        message = anthropic_client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=300,
-            temperature=0,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        data = json.loads(message.content[0].text)
+        # Create a message using the anthropic helper
+        messages = [ConversationMessage(role="user", content=prompt, timestamp="")]
+        response = anthropic_client.send_message(messages)
+        data = json.loads(response)
         return data.get("email"), data.get("question")
     except Exception as e:
         print(f"AI Error: {e}")
         return None, None
     
 def get_slack_user(email):
-    try:
-        r = slack_client.users_lookupByEmail(email=email)
-        return r['user']['id']
-    except SlackApiError:
-        return None
+    return slack_client.get_user_by_email(email)
 
 def check_for_reply(channel_id, oldest_ts, user_id):
-    try:
-        # Buffer to ensure we don't read our own message
-        buffer_ts = str(float(oldest_ts) + 0.000001)
-        history = slack_client.conversations_history(
-            channel=channel_id, 
-            oldest=buffer_ts
-        )
-        for msg in history.get('messages', []):
-            if 'bot_id' not in msg and msg.get('user') == user_id:
-                return msg['text']
-        return None
-    except Exception as e:
-        print(f"History check failed: {e}")
-        return None
-
-def requeue_job(job_id):
-    """Requeue a job for later processing"""
-    try:
-        queue_url = os.environ['SLACK_QUEUE_URL']
-        message_body = json.dumps({
-            'job': {
-                'id': job_id,
-                'status': 'PROCESSING',  # Will be fetched from DB in actual processing
-                'instruction': ''  # Will be fetched from DB in actual processing
-            }
-        })
-        
-        sqs.send_message(
-            QueueUrl=queue_url,
-            MessageBody=message_body,
-            DelaySeconds=30  # Wait 30 seconds before reprocessing
-        )
-        print(f"Job {job_id} requeued successfully")
-    except Exception as e:
-        print(f"Failed to requeue job {job_id}: {e}")
-
-
+    return slack_client.check_for_user_reply(channel_id, oldest_ts, user_id)
 
 def lambda_handler(event, context):
     for record in event['Records']:
@@ -122,7 +77,7 @@ def lambda_handler(event, context):
             user_id = get_slack_user(target_email)
             if user_id:
                 try:
-                    slack_res = slack_client.chat_postMessage(
+                    slack_res = slack_client.send_message(
                         channel=user_id,
                         text=f"🤖 *Action Required:*\n{question}\n_(Reply here)_"
                     )
@@ -150,9 +105,8 @@ def lambda_handler(event, context):
                     })
 
                     print(f"Job {jobId} initialized. Conversation stored.")
-                    requeue_job(jobId)
 
-                except SlackApiError as e:
+                except Exception as e:
                     print(f"Slack Error: {e}")
             else:
                 print(f"User {target_email} not found.")
@@ -201,7 +155,6 @@ def lambda_handler(event, context):
             else:
                 # D. No response yet -> Loop
                 print(f"Waiting for reply on Job {jobId}...")
-                requeue_job(jobId)
 
         # ====================================================
         # STATE 3: FINISHED
@@ -210,17 +163,3 @@ def lambda_handler(event, context):
             print("Job is already finished.")
 
     return {"statusCode": 200}
-
-
-        
-
-
-
-    result = {
-        "message": "Slack job processed successfully",
-        "instructions": instructions,
-        "action": "Simulated Slack notification sent",
-        "channels_notified": ["#general", "#notifications"],
-    }
-
-    return json.dumps(result)

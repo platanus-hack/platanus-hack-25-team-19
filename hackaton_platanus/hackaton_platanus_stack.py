@@ -76,7 +76,7 @@ class HackatonPlatanusStack(Stack):
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="orchestrator.handler",
             code=_lambda.Code.from_asset(lambda_code_path),
-            timeout=Duration.seconds(30),
+            timeout=Duration.seconds(800),
             memory_size=256,
             description="Orchestrator Lambda that processes job requests",
             function_name="orchestrator",
@@ -97,14 +97,6 @@ class HackatonPlatanusStack(Stack):
         market_research_queue.grant_send_messages(orchestrator_lambda)
         external_research_queue.grant_send_messages(orchestrator_lambda)
 
-        # Create Lambda layer for dependencies
-        dependencies_layer = _lambda.LayerVersion(
-            self, "DependenciesLayer",
-            code=_lambda.Code.from_asset("lambda/layer"),
-            compatible_runtimes=[_lambda.Runtime.PYTHON_3_11],
-            description="Anthropic SDK and other dependencies"
-        )
-
         # Create 5 agent Lambda functions for market research orchestration
         obstacles_agent = _lambda.Function(
             self, "ObstaclesAgent",
@@ -115,7 +107,6 @@ class HackatonPlatanusStack(Stack):
             memory_size=1024,  # 1GB
             description="Analyzes obstacles and challenges",
             function_name="obstacles_agent",
-            layers=[dependencies_layer],
             environment={
                 "JOBS_TABLE_NAME": jobs_table.table_name,
                 "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
@@ -131,7 +122,6 @@ class HackatonPlatanusStack(Stack):
             memory_size=1024,
             description="Researches existing solutions",
             function_name="solutions_agent",
-            layers=[dependencies_layer],
             environment={
                 "JOBS_TABLE_NAME": jobs_table.table_name,
                 "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
@@ -147,7 +137,6 @@ class HackatonPlatanusStack(Stack):
             memory_size=1024,
             description="Analyzes legal and regulatory requirements",
             function_name="legal_agent",
-            layers=[dependencies_layer],
             environment={
                 "JOBS_TABLE_NAME": jobs_table.table_name,
                 "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
@@ -163,7 +152,6 @@ class HackatonPlatanusStack(Stack):
             memory_size=1024,
             description="Analyzes competitors and market structure",
             function_name="competitor_agent",
-            layers=[dependencies_layer],
             environment={
                 "JOBS_TABLE_NAME": jobs_table.table_name,
                 "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
@@ -179,7 +167,6 @@ class HackatonPlatanusStack(Stack):
             memory_size=1024,
             description="Analyzes market size and trends",
             function_name="market_agent",
-            layers=[dependencies_layer],
             environment={
                 "JOBS_TABLE_NAME": jobs_table.table_name,
                 "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
@@ -222,7 +209,6 @@ class HackatonPlatanusStack(Stack):
             memory_size=1024,  # 1GB
             description="Orchestrates market research agents",
             function_name="market_research_worker",
-            layers=[dependencies_layer],
             environment={
                 "JOBS_TABLE_NAME": jobs_table.table_name,
                 "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY'],
