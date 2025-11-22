@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from shared.job_model import JobHandler
 from shared.slack import SlackHelper
 from shared.anthropic import Anthropic, ConversationMessage
 
@@ -23,20 +24,34 @@ JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
 # Get table reference
 jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
 conversations_table = dynamodb.Table(os.environ['CONVERSATIONS_TABLE_NAME'])
+job_handler = JobHandler(JOBS_TABLE_NAME)
 
-def extract_email_and_question_claude(text):
-    """Extracts email and question using Claude via the anthropic helper."""
+def generate_question(text):
     prompt = f"""
-    Instruction: "{text}"
-    Task: Extract target email and question.
-    Output JSON only: keys "email", "question".
-    """
+        **Rol:** Experto en comunicación interna corporativa.
+
+        **Tarea:**
+        Generar un mensaje directo para plataforma de chat (Teams/Slack) basado en los datos del JSON proporcionado.
+
+        **Instrucciones de Contenido:**
+        1.  Usa `contact.name` para el saludo (Ej: "Hola [Nombre]").
+        2.  Menciona el `context_summary` como el motivo del mensaje.
+        3.  Redacta las preguntas del array `questions` integrándolas en un solo párrafo coherente o punteos muy breves, manteniendo un tono de solicitud de ayuda profesional.
+
+        **Reglas de Salida (ESTRICTO):**
+        * Tu respuesta debe ser **ÚNICAMENTE** el texto del mensaje final.
+        * **NO** incluyas introducciones como "Aquí está tu mensaje", "Propuesta:", ni saludos al usuario.
+        * **NO** uses comillas al inicio o final ni bloques de código.
+
+        **Input JSON:**
+        ${text}
+        """
     try:
         # Create a message using the anthropic helper
         messages = [ConversationMessage(role="user", content=prompt, timestamp="")]
         response = anthropic_client.send_message(messages)
-        data = json.loads(response)
-        return data.get("email"), data.get("question")
+        return response.content
+    
     except Exception as e:
         print(f"AI Error: {e}")
         return None, None
@@ -50,7 +65,10 @@ def check_for_reply(channel_id, oldest_ts, user_id):
 def lambda_handler(event, context):
     for record in event['Records']:
         payload = json.loads(record['body'])
-        job = payload.get('job')
+        job_id = payload['job_id']
+        session_id = payload['session_id']
+
+        job = job_handler.find_one(session_id=session_id, job_id=job_id)
 
         if not job:
             print("No job found in payload")
@@ -67,7 +85,10 @@ def lambda_handler(event, context):
         # ====================================================
         if jobStatus == "CREATED":
             # A. AI Extraction
-            target_email, question = extract_email_and_question_claude(jobInstruction)
+
+            target_email = json.parse(jobInstruction)['contact']['email']
+
+            question = generate_question(jobInstruction)
 
             if not target_email or not question:
                 print("AI Extraction failed.")
@@ -85,12 +106,7 @@ def lambda_handler(event, context):
                     # C. WRITE SEPARATION
                     
                     # 1. Update Status in Jobs Table
-                    jobs_table.update_item(
-                        Key={'id': jobId},
-                        UpdateExpression="SET #st = :s",
-                        ExpressionAttributeNames={'#st': 'status'},
-                        ExpressionAttributeValues={':s': "PROCESSING"}
-                    )
+                    job_handler.mark_in_progress(session_id=session_id, job_id=jobId)
 
                     # 2. Create Entry in Conversations Table
                     # This keeps the Jobs table clean of Slack IDs and timestamps
@@ -136,12 +152,7 @@ def lambda_handler(event, context):
                 # C. RESPONSE FOUND
                 
                 # 1. Update Jobs Table (Business Logic)
-                jobs_table.update_item(
-                    Key={'id': jobId},
-                    UpdateExpression="SET #st = :s",
-                    ExpressionAttributeNames={'#st': 'status'},
-                    ExpressionAttributeValues={':s': "FINISHED"}
-                )
+                job_handler.mark_completed(session_id=session_id, job_id=jobId, result=reply_text)
 
                 # 2. Update Conversations Table (Data Logic)
                 conversations_table.update_item(
