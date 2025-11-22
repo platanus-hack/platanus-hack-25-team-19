@@ -66,8 +66,11 @@ class HackatonPlatanusStack(Stack):
                 "JOBS_TABLE_NAME": jobs_table.table_name,
                 "SLACK_QUEUE_URL": slack_queue.queue_url,
                 "MARKET_RESEARCH_QUEUE_URL": market_research_queue.queue_url,
-                "EXTERNAL_RESEARCH_QUEUE_URL": (external_research_queue.queue_url),
-            },
+                "EXTERNAL_RESEARCH_QUEUE_URL": (
+                    external_research_queue.queue_url
+                ),
+                "ANTHROPIC_API_KEY": "Llenar con la key"  # Replace with actual key or use Secrets Manager
+            }
         )
 
         # Grant permissions to orchestrator
