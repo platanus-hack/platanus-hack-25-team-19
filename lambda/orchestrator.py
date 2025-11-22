@@ -8,8 +8,6 @@ import time
 from datetime import datetime
 from typing import Dict, Any, List
 
-import boto3
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
