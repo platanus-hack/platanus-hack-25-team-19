@@ -1,6 +1,5 @@
 pytest==6.2.5
 boto3
-slack-sdk
 anthropic
 moto==4.2.14
 pytest-mock==3.12.0
