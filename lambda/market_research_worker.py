@@ -48,6 +48,9 @@ def handler(event, context):
             instructions = message_body["instructions"]
 
             job = job_handler.find_one(session_id=session_id, job_id=job_id)
+            if job is None:
+                logger.error(f"Job {job_id} not found in session {session_id}. Skipping.")
+                continue
 
             if job.status != 'CREATED':
                 logger.warning(f"Job {job_id} in session {session_id} is not in CREATED status. Current status: {job.status}. Skipping.")
