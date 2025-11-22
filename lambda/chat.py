@@ -94,11 +94,19 @@ FORMATO DE RESPUESTA:
 - Cuando reformules el problema, usa SIEMPRE: "El problema de fondo pareciera ser: [x]"
 
 **FORMATO JSON OBLIGATORIO:**
-Tu respuesta DEBE ser un JSON válido con esta estructura exacta:
+Tu respuesta DEBE ser ÚNICAMENTE un JSON válido con esta estructura exacta. NO incluyas texto antes o después del JSON:
+
 {
   "message": "tu respuesta conversacional aquí",
-  "temperature": X
+  "temperature": 5
 }
+
+REGLAS CRÍTICAS DEL JSON:
+- SOLO responde con el JSON, nada más
+- NO agregues explicaciones antes o después del JSON
+- NO uses markdown o código en bloques
+- El campo "temperature" DEBE ser un número entero del 1 al 10
+- El campo "message" DEBE contener tu respuesta conversacional en español
 
 Donde:
 - "message": Tu respuesta normal siguiendo todas las reglas anteriores
@@ -174,17 +182,53 @@ def handler(event, context):
             system=SYSTEM_INSTRUCTION
         )
 
+        print("Raw AI Response:", ai_response)
+
         # Parse JSON response to extract message and temperature
         try:
-            response_data = json.loads(ai_response)
-            print("Temperature: ", response_data.get('temperature'))
-            message_content = response_data.get('message', ai_response)  # Fallback to full response
-            temperature_score = response_data.get('temperature')  # Default to 5 if missing
-        except json.JSONDecodeError:
-            # If AI doesn't return valid JSON, use full response as message and default temperature
-            logger.warning("AI response was not valid JSON, using fallback")
-            message_content = ai_response
-            temperature_score = 5
+            # Try to parse the JSON response
+            response_data = json.loads(ai_response.strip())
+            print("Parsed JSON data:", response_data)
+
+            message_content = response_data.get('message')
+            temperature_score = response_data.get('temperature')
+
+            print("Extracted message:", message_content)
+            print("Extracted temperature:", temperature_score)
+
+            # Validate that both fields exist
+            if message_content is None or temperature_score is None:
+                raise ValueError(f"Missing required fields. message: {message_content}, temperature: {temperature_score}")
+
+            # Ensure temperature is a valid number between 1-10
+            temperature_score = int(temperature_score)
+            if not (1 <= temperature_score <= 10):
+                print(f"Temperature {temperature_score} out of range, setting to 5")
+                temperature_score = 5
+
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            # If AI doesn't return valid JSON, try to extract JSON from the response
+            print(f"JSON parsing failed: {e}")
+            print("Attempting to extract JSON from response...")
+
+            import re
+            json_match = re.search(r'\{[^}]*"message"[^}]*"temperature"[^}]*\}', ai_response)
+
+            if json_match:
+                try:
+                    json_str = json_match.group(0)
+                    print("Found JSON string:", json_str)
+                    response_data = json.loads(json_str)
+                    message_content = response_data.get('message', ai_response)
+                    temperature_score = int(response_data.get('temperature', 5))
+                except Exception as e2:
+                    print(f"Secondary JSON extraction failed: {e2}, using fallback")
+                    message_content = ai_response
+                    temperature_score = 5
+            else:
+                print("No JSON found in response, using fallback")
+                message_content = ai_response
+                temperature_score = 5
 
         # Add AI response to history (store the message content, not the JSON)
         assistant_message = ConversationMessage(
