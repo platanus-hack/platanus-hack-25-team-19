@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 import boto3
-from anthropic import Anthropic
+from shared.anthropic import Anthropic
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -35,7 +35,7 @@ def handler(event, context):
     try:
         # Parse input
         job_id = event["job_id"]
-        problem_context = event["problem_context"]
+        problem_context = event["instructions"]
         obstacles_findings = event.get("obstacles_findings", {})
         solutions_findings = event.get("solutions_findings", {})
 
