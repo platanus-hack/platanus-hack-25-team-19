@@ -5,7 +5,7 @@ import uuid
 import boto3
 from datetime import datetime
 from typing import Dict, Any, List
-from anthropic import Anthropic
+from shared.anthropic import Anthropic, ConversationMessage
 
 def get_organization_registry() -> List[Dict[str, Any]]:
     """Get organization data with fallback for when module is not available."""
@@ -21,7 +21,6 @@ logger.setLevel(logging.INFO)
 
 # --- ANTHROPIC CONFIGURATION ---
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-MODEL_NAME = "claude-sonnet-4-20250514"
 
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
@@ -123,22 +122,23 @@ SYSTEM_INSTRUCTION = (
 # --- API UTILITY FUNCTION ---
 
 def call_anthropic_with_jobs(system: str, user_prompt: str) -> Dict[str, Any]:
-    """Makes a call to the Anthropic API using the official client with job execution."""
+    """Makes a call to the Anthropic API using the shared module with tool execution."""
     try:
-        response = anthropic.messages.create(
-            model=MODEL_NAME,
-            max_tokens=4096,
-            system=system,
-            messages=[{"role": "user", "content": user_prompt}],
-            tools=get_orchestrator_job_schema()
+        # Create message in the required format
+        messages = [ConversationMessage(
+            role="user",
+            content=user_prompt,
+            timestamp=datetime.utcnow().isoformat()
+        )]
+
+        # Call with tools support
+        result = anthropic.send_message_with_tools(
+            messages=messages,
+            tools=get_orchestrator_job_schema(),
+            system=system
         )
 
-        # Parse the job execution response
-        for content_block in response.content:
-            if content_block.type == 'tool_use' and content_block.name == "project_quantification_engine_output":
-                return content_block.input
-
-        raise Exception("Model did not return the required 'project_quantification_engine_output' via job execution.")
+        return result
 
     except Exception as e:
         logger.error(f"Error calling Anthropic API: {e}")
