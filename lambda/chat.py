@@ -3,7 +3,6 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from decimal import Decimal
 
 from shared.anthropic import Anthropic, ConversationMessage
 
@@ -21,16 +20,6 @@ ANTHROPIC_API_KEY = os.environ['ANTHROPIC_API_KEY']
 
 # Get table reference
 chat_sessions_table = dynamodb.Table(CHAT_SESSIONS_TABLE_NAME)
-
-
-class DecimalEncoder(json.JSONEncoder):
-    '''Helper class to convert DynamoDB Decimal types to JSON'''
-
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return float(obj)
-        return super(DecimalEncoder, self).default(obj)
-
 
 SYSTEM_INSTRUCTION = '''
 Eres un experto en identificación de problemas empresariales usando el método de "5 Porqués" y análisis de causa raíz.
@@ -202,7 +191,7 @@ def handler(event, context):
         }
 
 
-def get_conversation_history(session_id, limit=50):
+def get_conversation_history(session_id: str, limit=50) -> list[ConversationMessage]:
     '''
     Retrieve conversation history for a session from DynamoDB.
 
@@ -220,15 +209,13 @@ def get_conversation_history(session_id, limit=50):
             ScanIndexForward=True,  # Sort by timestamp ascending
         )
 
-        messages = []
+        messages: list[ConversationMessage] = []
         for item in response.get('Items', []):
-            messages.append(
-                {
-                    'role': item.get('role'),
-                    'content': item.get('content'),
-                    'timestamp': item.get('timestamp'),
-                }
-            )
+            messages.append(ConversationMessage(
+                role=item.get('role'),
+                content=item.get('content'),
+                timestamp=item.get('timestamp'),
+            ))
 
         logger.info(f'Retrieved {len(messages)} messages for session {session_id}')
         return messages
@@ -238,7 +225,7 @@ def get_conversation_history(session_id, limit=50):
         return []
 
 
-def store_message(session_id, message):
+def store_message(session_id: str, message: ConversationMessage) -> None:
     '''
     Store a message in DynamoDB.
 
@@ -249,14 +236,14 @@ def store_message(session_id, message):
     try:
         item = {
             'session_id': session_id,
-            'timestamp': message['timestamp'],
-            'role': message['role'],
-            'content': message['content'],
+            'timestamp': message.timestamp,
+            'role': message.role,
+            'content': message.content,
             'created_at': datetime.utcnow().isoformat(),
         }
 
         chat_sessions_table.put_item(Item=item)
-        logger.info(f"Stored {message['role']} message for session {session_id}")
+        logger.info(f"Stored {message.role} message for session {session_id}")
 
     except Exception as e:
         logger.error(f'Error storing message: {str(e)}', exc_info=True)
