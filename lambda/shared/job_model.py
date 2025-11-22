@@ -75,8 +75,8 @@ class JobHandler:
             ExpressionAttributeValues=expression_attribute_values
         )
     
-    def mark_in_progress(self, session_id: str, job_id: str) -> None:
-        self._update(session_id, job_id, 'IN_PROGRESS')
+    def mark_in_progress(self, session_id: str, job_id: str, result: str | None = None) -> None:
+        self._update(session_id, job_id, 'IN_PROGRESS', result)
 
     def mark_completed(self, session_id: str, job_id: str, result: str) -> None:
         self._update(session_id, job_id, 'COMPLETED')

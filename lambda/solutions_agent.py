@@ -1,23 +1,13 @@
 import json
 import logging
 import os
-from datetime import datetime
-
-import boto3
 from shared.anthropic import Anthropic
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize AWS clients
-dynamodb = boto3.resource("dynamodb")
-
 # Get environment variables
-JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
-
-# Get table reference
-jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
 
 # Initialize Anthropic client
 anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -40,29 +30,8 @@ def handler(event, context):
 
         logger.info(f"Processing Solutions Agent for job {job_id}")
 
-        # Update job status
-        jobs_table.update_item(
-            Key={"id": job_id},
-            UpdateExpression="SET #status = :status, updated_at = :updated_at",
-            ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues={
-                ":status": "processing_solutions",
-                ":updated_at": datetime.utcnow().isoformat(),
-            },
-        )
-
         # Run agent with Claude
         result = run_solutions_analysis(problem_context, obstacles_findings)
-
-        # Save findings to DynamoDB
-        jobs_table.update_item(
-            Key={"id": job_id},
-            UpdateExpression=("SET solutions_findings = :findings, " "updated_at = :updated_at"),
-            ExpressionAttributeValues={
-                ":findings": json.dumps(result),
-                ":updated_at": datetime.utcnow().isoformat(),
-            },
-        )
 
         logger.info(f"Completed Solutions Agent for job {job_id}")
 
@@ -73,25 +42,6 @@ def handler(event, context):
 
     except Exception as e:
         logger.error(f"Error in Solutions Agent: {str(e)}", exc_info=True)
-
-        if "job_id" in locals():
-            try:
-                jobs_table.update_item(
-                    Key={"id": job_id},
-                    UpdateExpression=(
-                        "SET #status = :status, "
-                        "error_message = :error, "
-                        "updated_at = :updated_at"
-                    ),
-                    ExpressionAttributeNames={"#status": "status"},
-                    ExpressionAttributeValues={
-                        ":status": "failed_solutions",
-                        ":error": str(e),
-                        ":updated_at": datetime.utcnow().isoformat(),
-                    },
-                )
-            except Exception as update_error:
-                logger.error(f"Failed to update job status: {str(update_error)}")
 
         raise
 
