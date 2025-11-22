@@ -282,45 +282,113 @@ export default function Jobs() {
                                                 <p className="mt-1 text-xs text-(--color-text-secondary)">{config.description}</p>
                                             </div>
 
-                                            {/* Context Summary */}
-                                            {job.context_summary && (
+                                            {/* Slack - Contact Information */}
+                                            {jobType === 'slack' && instructions && instructions.contact && (
                                                 <div className="mt-2 pt-3 border-t border-(--color-border)">
-                                                    <p className="text-xs text-(--color-text-secondary) leading-relaxed">
-                                                        {job.context_summary}
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {/* Instructions */}
-                                            {instructions && instructions.reasoning && (
-                                                <div className="mt-2 pt-3 border-t border-(--color-border)">
-                                                    <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-1">
-                                                        Objetivo
-                                                    </p>
-                                                    <p className="text-xs text-(--color-text) leading-relaxed">
-                                                        {instructions.reasoning}
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {/* Queries */}
-                                            {instructions && instructions.queries && instructions.queries.length > 0 && (
-                                                <div className="mt-2">
-                                                    <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-1">
-                                                        Consultas ({instructions.queries.length})
-                                                    </p>
-                                                    <div className="space-y-1">
-                                                        {instructions.queries.slice(0, 2).map((query: string, idx: number) => (
-                                                            <p key={idx} className="text-xs text-(--color-text-secondary) leading-relaxed truncate">
-                                                                • {query}
+                                                    <div className="mb-2">
+                                                        <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-1">
+                                                            Contacto
+                                                        </p>
+                                                        <p className="text-xs font-medium text-(--color-text)">
+                                                            {instructions.contact.name}
+                                                        </p>
+                                                        <p className="text-xs text-(--color-text-secondary)">
+                                                            {instructions.contact.role}
+                                                        </p>
+                                                    </div>
+                                                    {instructions.contact.justification && (
+                                                        <div className="mt-2">
+                                                            <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-1">
+                                                                Justificación
                                                             </p>
-                                                        ))}
-                                                        {instructions.queries.length > 2 && (
-                                                            <p className="text-xs text-(--color-text-secondary) italic">
-                                                                +{instructions.queries.length - 2} más...
+                                                            <p className="text-xs text-(--color-text) leading-relaxed">
+                                                                {instructions.contact.justification}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {instructions.contact.questions && instructions.contact.questions.length > 0 && (
+                                                        <div className="mt-2">
+                                                            <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-1">
+                                                                Preguntas ({instructions.contact.questions.length})
+                                                            </p>
+                                                            <div className="space-y-1">
+                                                                {instructions.contact.questions.slice(0, 2).map((question: string, idx: number) => (
+                                                                    <p key={idx} className="text-xs text-(--color-text-secondary) leading-relaxed">
+                                                                        • {question}
+                                                                    </p>
+                                                                ))}
+                                                                {instructions.contact.questions.length > 2 && (
+                                                                    <p className="text-xs text-(--color-text-secondary) italic">
+                                                                        +{instructions.contact.questions.length - 2} más...
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Research/Data - Justification and Queries */}
+                                            {(jobType === 'research' || jobType === 'data' || jobType === 'market_research' || jobType === 'external_research') && instructions && (
+                                                <>
+                                                    {instructions.justification && (
+                                                        <div className="mt-2 pt-3 border-t border-(--color-border)">
+                                                            <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-1">
+                                                                Objetivo
+                                                            </p>
+                                                            <p className="text-xs text-(--color-text) leading-relaxed">
+                                                                {instructions.justification}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {instructions.queries && instructions.queries.length > 0 && (
+                                                        <div className="mt-2 pt-3 border-t border-(--color-border)">
+                                                            <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-1">
+                                                                Consultas ({instructions.queries.length})
+                                                            </p>
+                                                            <div className="space-y-1">
+                                                                {instructions.queries.slice(0, 2).map((query: string, idx: number) => (
+                                                                    <p key={idx} className="text-xs text-(--color-text-secondary) leading-relaxed truncate">
+                                                                        • {query}
+                                                                    </p>
+                                                                ))}
+                                                                {instructions.queries.length > 2 && (
+                                                                    <p className="text-xs text-(--color-text-secondary) italic">
+                                                                        +{instructions.queries.length - 2} más...
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+
+                                            {/* Mail - Contact Information */}
+                                            {jobType === 'mail' && instructions && instructions.contact && (
+                                                <div className="mt-2 pt-3 border-t border-(--color-border)">
+                                                    <div className="mb-2">
+                                                        <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-1">
+                                                            Destinatario
+                                                        </p>
+                                                        <p className="text-xs font-medium text-(--color-text)">
+                                                            {instructions.contact.name}
+                                                        </p>
+                                                        {instructions.contact.email && (
+                                                            <p className="text-xs text-(--color-text-secondary)">
+                                                                {instructions.contact.email}
                                                             </p>
                                                         )}
                                                     </div>
+                                                    {instructions.contact.justification && (
+                                                        <div className="mt-2">
+                                                            <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-1">
+                                                                Objetivo
+                                                            </p>
+                                                            <p className="text-xs text-(--color-text) leading-relaxed">
+                                                                {instructions.contact.justification}
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
