@@ -257,7 +257,7 @@ class SlackHelper:
 
             if len(replies) > 0:
                 first_reply = replies[0]
-                return first_reply["blocks"]["elements"][0]["elements"][0]["text"]
+                return first_reply["blocks"][0]["elements"][0]["elements"][0]["text"]
                 
             
             return None
@@ -272,7 +272,7 @@ class SlackHelper:
             'ts': ts
         }
             
-        response = self._make_request('GET', 'conversations.replies', data)
+        response = self.client._make_request('GET', 'conversations.replies', data)
 
         #first object in messages is the original, from second forth they are replies
         replies = response["messages"][1:]
