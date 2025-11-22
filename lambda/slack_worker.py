@@ -74,9 +74,9 @@ def lambda_handler(event, context):
             print("No job found in payload")
             continue
 
-        jobId = job['id']
-        jobStatus = job['status']
-        jobInstruction = job['instruction']
+        jobId = job.id
+        jobStatus = job.status
+        jobInstruction = job.instruction
 
         print(f">> Processing Job {jobId} | Status: {jobStatus}")
 
