@@ -76,7 +76,7 @@ def lambda_handler(event, context):
 
         jobId = job.id
         jobStatus = job.status
-        jobInstruction = job.instruction
+        jobInstruction = job.instructions
 
         print(f">> Processing Job {jobId} | Status: {jobStatus}")
 
