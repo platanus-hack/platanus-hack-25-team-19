@@ -107,7 +107,7 @@ Analyze the provided FULL_PROBLEM_DECLARATION and the INTERNAL_REGISTRY_DATA.
    - external_research: Activate only if the problem is highly technical, legal, or specialized (e.g., Blockchain, AI, new regulation) requiring external validation not available on our team of viability (Score 3).
 
 [3] CONTENT GENERATION: For every activated module, generate the full content details:
-   - slack: Analyze the INTERNAL_REGISTRY_DATA to identify the most relevant people to contact. Select 2-3 specific individuals whose roles, project experience, or expertise align with the problem. For each person, include: name, email, role, justification for selection based on their projects/expertise, and 2-3 specific questions or data points to request from them.
+   - slack: Analyze the INTERNAL_REGISTRY_DATA to identify the most relevant people to contact. Select 2-3 specific individuals whose roles, project experience, or expertise align with the problem. Create a 'contacts' array where each contact is a separate object with: name, email, role, justification for selection based on their projects/expertise, and 2-3 specific questions or data points to request from them.
    - research: Generate 3 highly specific search queries and 3 expected quantifiable data points.
    - external_research: Define the precise expert profile and generate 3 critical, high-level, challenging questions.
 
@@ -207,32 +207,78 @@ def handler(event: Dict[str, Any], context: Any):
                     queue_url = SQS_MAPPING.get(job_key)
 
                     if queue_url:
-                        job_item = JobModel(
-                            session_id=session_id,
-                            status='CREATED',
-                            job_type=job_key,
-                            instructions=json.dumps(job_payload),
-                            context_summary=context_summary,
-                            created_at=current_time,
-                            updated_at=current_time
-                        )
+                        # Handle Slack jobs differently - create one job per contact
+                        if job_key == 'slack' and 'contacts' in job_payload:
+                            for contact in job_payload['contacts']:
+                                individual_contact_payload = {
+                                    'contact': contact,
+                                    'context_summary': context_summary
+                                }
 
-                        JobHandler(JOBS_TABLE_NAME).create(job=job_item)
+                                contact_name_clean = contact['name'].replace(' ', '_').lower()
+                                job_item = JobModel(
+                                    session_id=session_id,
+                                    status='CREATED',
+                                    job_type='slack',
+                                    instructions=json.dumps(individual_contact_payload),
+                                    context_summary=context_summary,
+                                    created_at=current_time,
+                                    updated_at=current_time
+                                )
 
-                        logger.info(f"Created job {job_item.id} ({job_key}) in DynamoDB")
+                                JobHandler(JOBS_TABLE_NAME).create(job=job_item)
+                                logger.info(f"Created individual Slack job {job_item.id} for {contact['name']}")
 
-                        # B) SQS FAN-OUT: Send the job ID and type to the execution queue
-                        message_body = {
-                            'job': job_item.__dict__,
-                        }
+                                # Send to SQS
+                                message_body = {
+                                    'job_id': job_item.id,
+                                    'session_id': session_id
+                                }
 
-                        sqs.send_message(
-                            QueueUrl=queue_url,
-                            MessageBody=json.dumps(message_body)
-                        )
-                        logger.info(f"Sent message for job {job_item.id} to {job_key} queue")
+                                sqs.send_message(
+                                    QueueUrl=queue_url,
+                                    MessageBody=json.dumps(message_body)
+                                )
+                                logger.info(f"Sent Slack message for {contact['name']} to queue")
 
-                        triggered_jobs.append(job_item.__dict__)
+                                triggered_jobs.append({
+                                    'job_id': job_item.id,
+                                    'status': 'CREATED',
+                                    'contact_name': contact['name'],
+                                    'job_type': f"slack_{contact_name_clean}"
+                                })
+                        else:
+                            # Handle research and external_research jobs normally (single job per type)
+                            job_item = JobModel(
+                                session_id=session_id,
+                                status='CREATED',
+                                job_type=job_key,
+                                instructions=json.dumps(job_payload),
+                                context_summary=context_summary,
+                                created_at=current_time,
+                                updated_at=current_time
+                            )
+
+                            JobHandler(JOBS_TABLE_NAME).create(job=job_item)
+                            logger.info(f"Created job {job_item.id} ({job_key}) in DynamoDB")
+
+                            # Send to SQS
+                            message_body = {
+                                'job_id': job_item.id,
+                                'session_id': session_id
+                            }
+
+                            sqs.send_message(
+                                QueueUrl=queue_url,
+                                MessageBody=json.dumps(message_body)
+                            )
+                            logger.info(f"Sent message for job {job_item.id} to {job_key} queue")
+
+                            triggered_jobs.append({
+                                'job_id': job_item.id,
+                                'status': 'CREATED',
+                                'job_type': job_key
+                            })
                     else:
                         logger.warning(f"Job {job_key} activated but no SQS URL found in map.")
 

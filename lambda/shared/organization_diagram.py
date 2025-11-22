@@ -33,7 +33,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
     # --- LEADERSHIP & STRATEGY ---
     Person(
         name="Maria Rodriguez",
-        email="maria.rodriguez@company.com",
+        email="jtgonzalez@copec.cl",
         role="CEO",
         role_description="Chief Executive Officer responsible for overall company strategy, vision, and major business decisions",
         projects=[
@@ -45,7 +45,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
 
     Person(
         name="Carlos Mendez",
-        email="carlos.mendez@company.com",
+        email="jschenke@copec.cl",
         role="CFO",
         role_description="Chief Financial Officer managing financial planning, budgeting, and investment decisions",
         projects=[
@@ -58,7 +58,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
     # --- TECHNOLOGY & ENGINEERING ---
     Person(
         name="Ana Silva",
-        email="ana.silva@company.com",
+        email="jdlarrain@copec.cl",
         role="CTO",
         role_description="Chief Technology Officer overseeing technology strategy, architecture, and engineering teams",
         projects=[
@@ -70,7 +70,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
 
     Person(
         name="Diego Fernandez",
-        email="diego.fernandez@company.com",
+        email="nhorellana@copec.cl",
         role="Senior Software Engineer",
         role_description="Lead developer specializing in backend systems, APIs, and database architecture",
         projects=[
@@ -82,7 +82,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
 
     Person(
         name="Laura Kim",
-        email="laura.kim@company.com",
+        email="jtgonzalez@copec.cl",
         role="DevOps Engineer",
         role_description="DevOps specialist managing CI/CD pipelines, infrastructure automation, and monitoring",
         projects=[
@@ -95,7 +95,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
     # --- PRODUCT & DESIGN ---
     Person(
         name="Sofia Martinez",
-        email="sofia.martinez@company.com",
+        email="jschenke@copec.cl",
         role="Product Manager",
         role_description="Product manager responsible for product strategy, roadmap, and user experience",
         projects=[
@@ -107,7 +107,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
 
     Person(
         name="Roberto Chen",
-        email="roberto.chen@company.com",
+        email="jdlarrain@copec.cl",
         role="UX/UI Designer",
         role_description="User experience and interface designer focusing on user-centered design and accessibility",
         projects=[
@@ -120,7 +120,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
     # --- SALES & MARKETING ---
     Person(
         name="Isabella Torres",
-        email="isabella.torres@company.com",
+        email="nhorellana@copec.cl",
         role="Sales Director",
         role_description="Sales director managing enterprise sales, client relationships, and revenue growth",
         projects=[
@@ -132,7 +132,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
 
     Person(
         name="Miguel Gonzalez",
-        email="miguel.gonzalez@company.com",
+        email="jtgonzalez@copec.cl",
         role="Marketing Manager",
         role_description="Marketing manager specializing in digital marketing, content strategy, and brand management",
         projects=[
@@ -145,7 +145,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
     # --- OPERATIONS & FINANCE ---
     Person(
         name="Gabriela Lopez",
-        email="gabriela.lopez@company.com",
+        email="jschenke@copec.cl",
         role="Operations Manager",
         role_description="Operations manager overseeing daily operations, process improvement, and efficiency optimization",
         projects=[
@@ -157,7 +157,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
 
     Person(
         name="Fernando Ruiz",
-        email="fernando.ruiz@company.com",
+        email="jdlarrain@copec.cl",
         role="Financial Analyst",
         role_description="Financial analyst specializing in financial modeling, budgeting, and business intelligence",
         projects=[
@@ -170,7 +170,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
     # --- HUMAN RESOURCES & LEGAL ---
     Person(
         name="Carmen Jimenez",
-        email="carmen.jimenez@company.com",
+        email="nhorellana@copec.cl",
         role="HR Director",
         role_description="HR director managing talent acquisition, employee development, and organizational culture",
         projects=[
@@ -182,7 +182,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
 
     Person(
         name="Alejandro Vega",
-        email="alejandro.vega@company.com",
+        email="jtgonzalez@copec.cl",
         role="Legal Counsel",
         role_description="Legal counsel handling contracts, compliance, intellectual property, and regulatory matters",
         projects=[
@@ -195,7 +195,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
     # --- CUSTOMER SUPPORT & SUCCESS ---
     Person(
         name="Natalia Morales",
-        email="natalia.morales@company.com",
+        email="jschenke@copec.cl",
         role="Customer Support Manager",
         role_description="Customer support manager ensuring excellent customer service and satisfaction",
         projects=[
@@ -208,7 +208,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
     # --- DATA & ANALYTICS ---
     Person(
         name="Ricardo Soto",
-        email="ricardo.soto@company.com",
+        email="jdlarrain@copec.cl",
         role="Data Scientist",
         role_description="Data scientist specializing in machine learning, predictive analytics, and business intelligence",
         projects=[
