@@ -131,11 +131,11 @@ def call_anthropic_with_jobs(system: str, user_prompt: str) -> Dict[str, Any]:
             timestamp=datetime.utcnow().isoformat()
         )]
 
-        # Call with tools support
-        result = anthropic.send_message_with_tools(
+        # Call with tools support using the unified method
+        result = anthropic.send_message(
             messages=messages,
-            tools=get_orchestrator_job_schema(),
-            system=system
+            system=system,
+            tools=get_orchestrator_job_schema()
         )
 
         return result
@@ -143,8 +143,6 @@ def call_anthropic_with_jobs(system: str, user_prompt: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error calling Anthropic API: {e}")
         raise
-
-
 # --- MAIN HANDLER ---
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
