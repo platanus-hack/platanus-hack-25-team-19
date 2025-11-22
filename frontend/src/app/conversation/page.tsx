@@ -55,9 +55,24 @@ export default function Conversation() {
                 setSessionId(data.session_id);
             }
 
+            // Parse the message field which contains JSON
+            let messageContent = data.message || 'No se recibió respuesta del servidor.';
+            try {
+                // Check if message contains JSON (starts with ```json)
+                if (messageContent.includes('```json')) {
+                    const jsonMatch = messageContent.match(/```json\n([\s\S]*?)\n```/);
+                    if (jsonMatch && jsonMatch[1]) {
+                        const parsedJson = JSON.parse(jsonMatch[1]);
+                        messageContent = parsedJson.message || messageContent;
+                    }
+                }
+            } catch (error) {
+                console.error('Error parsing message JSON:', error);
+            }
+
             const assistantMessage: Message = {
                 role: 'assistant',
-                content: data.message || 'No se recibió respuesta del servidor.'
+                content: messageContent
             };
             setMessages(prev => [...prev, assistantMessage]);
         } catch (error) {
@@ -151,6 +166,25 @@ export default function Conversation() {
             const data = await response.json();
             setSynthesisMessage(data.message || 'No se recibió respuesta del servidor.');
             setEditableSynthesis(data.message || 'No se recibió respuesta del servidor.');
+
+            // Parse the message field which contains JSON
+            let messageContent = data.message || 'No se recibió respuesta del servidor.';
+            try {
+                // Check if message contains JSON (starts with ```json)
+                if (messageContent.includes('```json')) {
+                    const jsonMatch = messageContent.match(/```json\n([\s\S]*?)\n```/);
+                    if (jsonMatch && jsonMatch[1]) {
+                        const parsedJson = JSON.parse(jsonMatch[1]);
+                        messageContent = parsedJson.message || messageContent;
+                    }
+                }
+            } catch (error) {
+                console.error('Error parsing synthesis message JSON:', error);
+                // Keep original message if parsing fails
+            }
+
+            setSynthesisMessage(messageContent);
+            setEditableSynthesis(messageContent);
             setShowModal(true);
         } catch (error) {
             console.error('Error synthesizing conversation:', error);
