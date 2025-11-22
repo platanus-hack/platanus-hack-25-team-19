@@ -8,40 +8,16 @@ interface Message {
     content: string;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 export default function Conversation() {
     const router = useRouter();
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [sessionId, setSessionId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const hasInitialized = useRef(false);
-
-    useEffect(() => {
-        if (hasInitialized.current) return;
-        hasInitialized.current = true;
-
-        const savedMessages = localStorage.getItem('conversation-messages');
-
-        if (savedMessages) {
-            try {
-                const parsed = JSON.parse(savedMessages);
-                handleSendMessage(parsed[0].content);
-                setMessages(parsed);
-            } catch (error) {
-                console.error('Error loading messages:', error);
-            }
-        }
-    }, []);
-
-    useEffect(() => {
-        if (messages.length > 0) {
-            localStorage.setItem('conversation-messages', JSON.stringify(messages));
-        }
-    }, [messages]);
-
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
 
     const handleSendMessage = async (message: string) => {
         if (!message.trim()) return;
@@ -52,12 +28,17 @@ export default function Conversation() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('/chat', {
+            const requestBody: { message: string; session_id?: string } = { message };
+            if (sessionId) {
+                requestBody.session_id = sessionId;
+            }
+
+            const response = await fetch(`${API_URL}/chat`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message }),
+                body: JSON.stringify(requestBody),
             });
 
             if (!response.ok) {
@@ -65,16 +46,21 @@ export default function Conversation() {
             }
 
             const data = await response.json();
+
+            if (data.session_id && !sessionId) {
+                setSessionId(data.session_id);
+            }
+
             const assistantMessage: Message = {
                 role: 'assistant',
-                content: data.response || 'This is a placeholder response. Connect the /chat endpoint to see real responses.'
+                content: data.message || 'No se recibió respuesta del servidor.'
             };
             setMessages(prev => [...prev, assistantMessage]);
         } catch (error) {
             console.error('Error sending message:', error);
             const assistantMessage: Message = {
                 role: 'assistant',
-                content: 'This is a placeholder response. Connect the /chat endpoint to see real responses.'
+                content: 'Error al conectar con el servidor. Por favor intenta de nuevo.'
             };
             setMessages(prev => [...prev, assistantMessage]);
         } finally {
@@ -87,14 +73,16 @@ export default function Conversation() {
         handleSendMessage(inputValue);
     };
 
-    const clearConversation = () => {
+    const handleClearConversation = () => {
         setMessages([]);
+        setSessionId(null);
         localStorage.removeItem('conversation-messages');
+        localStorage.removeItem('conversation-session-id');
     };
 
     const handleCreateJobs = async () => {
         try {
-            const response = await fetch('/jobs', {
+            const response = await fetch(`${API_URL}/jobs`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -129,7 +117,7 @@ export default function Conversation() {
                     </button>
                     <h1 className="text-lg font-semibold text-(--color-text)">AI Conversation</h1>
                     <button
-                        onClick={clearConversation}
+                        onClick={handleClearConversation}
                         className="cursor-pointer text-sm text-(--color-text-secondary) transition-colors hover:text-red-500"
                         title="Clear conversation"
                     >
