@@ -12,7 +12,7 @@ logger.setLevel(logging.INFO)
 
 # --- ANTHROPIC CONFIGURATION ---
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-MODEL_NAME = "claude-3-opus-20240229"
+MODEL_NAME = "claude-sonnet-4-20250514"
 
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
