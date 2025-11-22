@@ -66,6 +66,7 @@ def handler(event, context):
 
             if queue_url:
                 message_body = {
+                    'session_id': session_id,
                     'job_id': job_item.id,
                 }
 
