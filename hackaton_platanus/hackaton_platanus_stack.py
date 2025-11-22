@@ -221,7 +221,7 @@ class HackatonPlatanusStack(Stack):
                 "CONVERSATIONS_TABLE_NAME": conversations_table.table_name,
                 "SLACK_QUEUE_URL": slack_queue.queue_url,
                 # These should be set via environment variables or AWS Secrets Manager
-                "SLACK_BOT_TOKEN": os.environ.get("SLACK_BOT_TOKEN", ""),
+                "SLACK_BOT_TOKEN": os.environ["SLACK_BOT_TOKEN"],
                 "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
             }
         )

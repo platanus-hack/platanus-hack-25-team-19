@@ -16,7 +16,7 @@ sqs = boto3.client('sqs')
 
 # Initialize external service clients
 anthropic_client = Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-slack_client = SlackHelper(token=os.environ.get('SLACK_BOT_TOKEN'))
+slack_client = SlackHelper(token=os.environ['SLACK_BOT_TOKEN'])
 
 # Get environment variables
 JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]

@@ -22,7 +22,7 @@ class SlackHTTPClient:
         Args:
             token: Slack bot token. If None, will use SLACK_BOT_TOKEN environment variable.
         """
-        self.token = token or os.environ.get('SLACK_BOT_TOKEN')
+        self.token = token or os.environ['SLACK_BOT_TOKEN']
         if not self.token:
             raise ValueError("Slack bot token is required")
         
