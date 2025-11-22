@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 import boto3
-from shared.anthropic import Anthropic
+from shared.anthropic import Anthropic, ConversationMessage
 from shared.job_model import JobHandler
 
 logger = logging.getLogger()
@@ -279,12 +279,12 @@ Create a well-structured report that tells the complete story and provides actio
 
     logger.info("Generating synthesis with Claude API...")
 
-    response = anthropic.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4000,
-        temperature=0.4,  # Slightly higher for better prose
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
+    response = anthropic.send_message(
+        messages=[ConversationMessage(
+            role="user",
+            content=user_prompt
+        )],
+        system=system_prompt
     )
 
     # Extract text from response

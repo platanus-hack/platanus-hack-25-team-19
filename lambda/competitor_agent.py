@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from shared.anthropic import Anthropic
+from shared.anthropic import Anthropic, ConversationMessage
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -145,12 +145,12 @@ Provide detailed, current information with sources."""
 
     logger.info("Calling Claude API for competitor analysis...")
 
-    response = anthropic.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4000,
-        temperature=0.3,
+    response = anthropic.send_message(
+        messages=[ConversationMessage(
+            role="user",
+            content=user_prompt
+        )],
         system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
         tools=[
             {
                 "name": "web_search",
