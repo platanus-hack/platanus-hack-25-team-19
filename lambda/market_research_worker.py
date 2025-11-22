@@ -1,25 +1,26 @@
 import json
 import logging
 import os
-import boto3
 from datetime import datetime
+
+import boto3
 from anthropic import Anthropic
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
-dynamodb = boto3.resource('dynamodb')
-lambda_client = boto3.client('lambda')
+dynamodb = boto3.resource("dynamodb")
+lambda_client = boto3.client("lambda")
 
 # Get environment variables
-JOBS_TABLE_NAME = os.environ['JOBS_TABLE_NAME']
-ANTHROPIC_API_KEY = os.environ['ANTHROPIC_API_KEY']
-OBSTACLES_AGENT_NAME = os.environ['OBSTACLES_AGENT_NAME']
-SOLUTIONS_AGENT_NAME = os.environ['SOLUTIONS_AGENT_NAME']
-LEGAL_AGENT_NAME = os.environ['LEGAL_AGENT_NAME']
-COMPETITOR_AGENT_NAME = os.environ['COMPETITOR_AGENT_NAME']
-MARKET_AGENT_NAME = os.environ['MARKET_AGENT_NAME']
+JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
+ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+OBSTACLES_AGENT_NAME = os.environ["OBSTACLES_AGENT_NAME"]
+SOLUTIONS_AGENT_NAME = os.environ["SOLUTIONS_AGENT_NAME"]
+LEGAL_AGENT_NAME = os.environ["LEGAL_AGENT_NAME"]
+COMPETITOR_AGENT_NAME = os.environ["COMPETITOR_AGENT_NAME"]
+MARKET_AGENT_NAME = os.environ["MARKET_AGENT_NAME"]
 
 # Get table reference
 jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
@@ -37,30 +38,28 @@ def handler(event, context):
     logger.info(f"Market Research Orchestrator received event: {json.dumps(event)}")
 
     try:
-        for record in event['Records']:
+        for record in event["Records"]:
             # Parse the SQS message
-            message_body = json.loads(record['body'])
-            job_id = message_body['job_id']
-            instructions = message_body['instructions']
+            message_body = json.loads(record["body"])
+            job_id = message_body["job_id"]
+            instructions = message_body["instructions"]
 
             logger.info(f"Starting market research orchestration for job {job_id}")
 
             # Update job status to processing
             jobs_table.update_item(
-                Key={'id': job_id},
+                Key={"id": job_id},
                 UpdateExpression=(
-                    'SET #status = :status, '
-                    'started_at = :started_at, '
-                    'updated_at = :updated_at'
+                    "SET #status = :status, "
+                    "started_at = :started_at, "
+                    "updated_at = :updated_at"
                 ),
-                ExpressionAttributeNames={
-                    '#status': 'status'
-                },
+                ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
-                    ':status': 'processing',
-                    ':started_at': datetime.utcnow().isoformat(),
-                    ':updated_at': datetime.utcnow().isoformat()
-                }
+                    ":status": "processing",
+                    ":started_at": datetime.utcnow().isoformat(),
+                    ":updated_at": datetime.utcnow().isoformat(),
+                },
             )
 
             # Execute agents sequentially
@@ -68,11 +67,7 @@ def handler(event, context):
                 # Agent 1: Obstacles
                 logger.info(f"Invoking Obstacles Agent for job {job_id}")
                 obstacles_response = invoke_agent(
-                    OBSTACLES_AGENT_NAME,
-                    {
-                        'job_id': job_id,
-                        'problem_context': instructions
-                    }
+                    OBSTACLES_AGENT_NAME, {"job_id": job_id, "problem_context": instructions}
                 )
                 obstacles_findings = extract_findings(obstacles_response)
                 logger.info(f"Obstacles Agent completed for job {job_id}")
@@ -82,10 +77,10 @@ def handler(event, context):
                 solutions_response = invoke_agent(
                     SOLUTIONS_AGENT_NAME,
                     {
-                        'job_id': job_id,
-                        'problem_context': instructions,
-                        'obstacles_findings': obstacles_findings
-                    }
+                        "job_id": job_id,
+                        "problem_context": instructions,
+                        "obstacles_findings": obstacles_findings,
+                    },
                 )
                 solutions_findings = extract_findings(solutions_response)
                 logger.info(f"Solutions Agent completed for job {job_id}")
@@ -95,11 +90,11 @@ def handler(event, context):
                 legal_response = invoke_agent(
                     LEGAL_AGENT_NAME,
                     {
-                        'job_id': job_id,
-                        'problem_context': instructions,
-                        'obstacles_findings': obstacles_findings,
-                        'solutions_findings': solutions_findings
-                    }
+                        "job_id": job_id,
+                        "problem_context": instructions,
+                        "obstacles_findings": obstacles_findings,
+                        "solutions_findings": solutions_findings,
+                    },
                 )
                 legal_findings = extract_findings(legal_response)
                 logger.info(f"Legal Agent completed for job {job_id}")
@@ -109,12 +104,12 @@ def handler(event, context):
                 competitor_response = invoke_agent(
                     COMPETITOR_AGENT_NAME,
                     {
-                        'job_id': job_id,
-                        'problem_context': instructions,
-                        'obstacles_findings': obstacles_findings,
-                        'solutions_findings': solutions_findings,
-                        'legal_findings': legal_findings
-                    }
+                        "job_id": job_id,
+                        "problem_context": instructions,
+                        "obstacles_findings": obstacles_findings,
+                        "solutions_findings": solutions_findings,
+                        "legal_findings": legal_findings,
+                    },
                 )
                 competitor_findings = extract_findings(competitor_response)
                 logger.info(f"Competitor Agent completed for job {job_id}")
@@ -124,13 +119,13 @@ def handler(event, context):
                 market_response = invoke_agent(
                     MARKET_AGENT_NAME,
                     {
-                        'job_id': job_id,
-                        'problem_context': instructions,
-                        'obstacles_findings': obstacles_findings,
-                        'solutions_findings': solutions_findings,
-                        'legal_findings': legal_findings,
-                        'competitor_findings': competitor_findings
-                    }
+                        "job_id": job_id,
+                        "problem_context": instructions,
+                        "obstacles_findings": obstacles_findings,
+                        "solutions_findings": solutions_findings,
+                        "legal_findings": legal_findings,
+                        "competitor_findings": competitor_findings,
+                    },
                 )
                 market_findings = extract_findings(market_response)
                 logger.info(f"Market Agent completed for job {job_id}")
@@ -143,71 +138,67 @@ def handler(event, context):
                     solutions_findings,
                     legal_findings,
                     competitor_findings,
-                    market_findings
+                    market_findings,
                 )
 
                 # Update job with final result
                 final_result = {
-                    'problem_context': instructions,
-                    'findings': {
-                        'obstacles': obstacles_findings,
-                        'solutions': solutions_findings,
-                        'legal': legal_findings,
-                        'competitors': competitor_findings,
-                        'market': market_findings
+                    "problem_context": instructions,
+                    "findings": {
+                        "obstacles": obstacles_findings,
+                        "solutions": solutions_findings,
+                        "legal": legal_findings,
+                        "competitors": competitor_findings,
+                        "market": market_findings,
                     },
-                    'synthesis': synthesis,
-                    'completed_at': datetime.utcnow().isoformat()
+                    "synthesis": synthesis,
+                    "completed_at": datetime.utcnow().isoformat(),
                 }
 
                 jobs_table.update_item(
-                    Key={'id': job_id},
+                    Key={"id": job_id},
                     UpdateExpression=(
-                        'SET #status = :status, '
-                        '#result = :result, '
-                        'completed_at = :completed_at, '
-                        'updated_at = :updated_at'
+                        "SET #status = :status, "
+                        "#result = :result, "
+                        "completed_at = :completed_at, "
+                        "updated_at = :updated_at"
                     ),
-                    ExpressionAttributeNames={
-                        '#status': 'status',
-                        '#result': 'result'
-                    },
+                    ExpressionAttributeNames={"#status": "status", "#result": "result"},
                     ExpressionAttributeValues={
-                        ':status': 'completed',
-                        ':result': json.dumps(final_result),
-                        ':completed_at': datetime.utcnow().isoformat(),
-                        ':updated_at': datetime.utcnow().isoformat()
-                    }
+                        ":status": "completed",
+                        ":result": json.dumps(final_result),
+                        ":completed_at": datetime.utcnow().isoformat(),
+                        ":updated_at": datetime.utcnow().isoformat(),
+                    },
                 )
 
-                logger.info(f"Market research orchestration completed successfully for job {job_id}")
+                logger.info(
+                    f"Market research orchestration completed successfully for job {job_id}"
+                )
 
             except Exception as agent_error:
-                logger.error(f"Agent execution failed for job {job_id}: {str(agent_error)}", exc_info=True)
+                logger.error(
+                    f"Agent execution failed for job {job_id}: {str(agent_error)}", exc_info=True
+                )
 
                 # Update job status to failed
                 jobs_table.update_item(
-                    Key={'id': job_id},
+                    Key={"id": job_id},
                     UpdateExpression=(
-                        'SET #status = :status, '
-                        'error_message = :error, '
-                        'updated_at = :updated_at'
+                        "SET #status = :status, "
+                        "error_message = :error, "
+                        "updated_at = :updated_at"
                     ),
-                    ExpressionAttributeNames={
-                        '#status': 'status'
-                    },
+                    ExpressionAttributeNames={"#status": "status"},
                     ExpressionAttributeValues={
-                        ':status': 'failed',
-                        ':error': str(agent_error),
-                        ':updated_at': datetime.utcnow().isoformat()
-                    }
+                        ":status": "failed",
+                        ":error": str(agent_error),
+                        ":updated_at": datetime.utcnow().isoformat(),
+                    },
                 )
                 raise
 
-        return {
-            'statusCode': 200,
-            'body': json.dumps('Successfully processed messages')
-        }
+        return {"statusCode": 200, "body": json.dumps("Successfully processed messages")}
 
     except Exception as e:
         logger.error(f"Error in orchestrator: {str(e)}", exc_info=True)
@@ -222,18 +213,18 @@ def invoke_agent(function_name, payload):
 
     response = lambda_client.invoke(
         FunctionName=function_name,
-        InvocationType='RequestResponse',  # Synchronous
-        Payload=json.dumps(payload)
+        InvocationType="RequestResponse",  # Synchronous
+        Payload=json.dumps(payload),
     )
 
     # Parse response
-    response_payload = json.loads(response['Payload'].read())
+    response_payload = json.loads(response["Payload"].read())
 
-    if response['StatusCode'] != 200:
+    if response["StatusCode"] != 200:
         raise Exception(f"Agent {function_name} returned status {response['StatusCode']}")
 
-    if 'FunctionError' in response:
-        error_msg = response_payload.get('errorMessage', 'Unknown error')
+    if "FunctionError" in response:
+        error_msg = response_payload.get("errorMessage", "Unknown error")
         raise Exception(f"Agent {function_name} failed: {error_msg}")
 
     logger.info(f"Lambda function {function_name} completed successfully")
@@ -245,24 +236,17 @@ def extract_findings(agent_response):
     Extract findings from agent Lambda response.
     """
     try:
-        body = agent_response.get('body')
+        body = agent_response.get("body")
         if isinstance(body, str):
             body = json.loads(body)
 
-        return body.get('findings', {})
+        return body.get("findings", {})
     except Exception as e:
         logger.warning(f"Could not extract findings from response: {e}")
         return {}
 
 
-def generate_synthesis(
-    problem_context,
-    obstacles,
-    solutions,
-    legal,
-    competitors,
-    market
-):
+def generate_synthesis(problem_context, obstacles, solutions, legal, competitors, market):
     """
     Generate executive summary synthesizing all research findings.
     """
@@ -316,10 +300,7 @@ Create a well-structured report that tells the complete story and provides actio
         max_tokens=4000,
         temperature=0.4,  # Slightly higher for better prose
         system=system_prompt,
-        messages=[{
-            "role": "user",
-            "content": user_prompt
-        }]
+        messages=[{"role": "user", "content": user_prompt}],
     )
 
     # Extract text from response

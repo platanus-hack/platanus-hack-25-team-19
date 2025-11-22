@@ -12,17 +12,17 @@ install: ## Install dependencies
 	pre-commit install
 
 format: ## Format code with black and isort
-	black .
-	isort .
+	python -m black .
+	python -m isort .
 
 lint: ## Run linters (flake8)
-	flake8 .
+	python -m flake8 .
 
 test: ## Run tests
-	pytest
+	python -m pytest
 
 pre-commit: ## Run pre-commit hooks on all files
-	pre-commit run --all-files
+	python -m pre_commit run --all-files
 
 layer: ## Build Lambda layer dependencies
 	cd lambda/layer && \
