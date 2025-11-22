@@ -68,6 +68,43 @@ export default function Conversation() {
         }
     };
 
+    useEffect(() => {
+        if (hasInitialized.current) return;
+        hasInitialized.current = true;
+
+        const savedMessages = localStorage.getItem('conversation-messages');
+        const savedSessionId = localStorage.getItem('conversation-session-id');
+
+        if (savedSessionId) {
+            setSessionId(savedSessionId);
+        }
+
+        if (savedMessages) {
+            try {
+                const parsed = JSON.parse(savedMessages);
+                setMessages(parsed);
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (messages.length > 0) {
+            localStorage.setItem('conversation-messages', JSON.stringify(messages));
+        }
+    }, [messages]);
+
+    useEffect(() => {
+        if (sessionId) {
+            localStorage.setItem('conversation-session-id', sessionId);
+        }
+    }, [sessionId]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         handleSendMessage(inputValue);
