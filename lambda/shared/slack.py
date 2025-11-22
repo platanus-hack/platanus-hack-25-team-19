@@ -123,35 +123,6 @@ class SlackHTTPClient:
         }
         return self._make_request('POST', 'chat.postMessage', data)
     
-    def conversations_history(self, channel: str, oldest: Optional[str] = None, 
-                            latest: Optional[str] = None, limit: int = 100, 
-                            **kwargs) -> Dict[str, Any]:
-        """
-        Retrieve conversation history from a channel.
-        
-        Args:
-            channel: Channel ID to get history from
-            oldest: Only messages after this timestamp (inclusive)
-            latest: Only messages before this timestamp (exclusive)
-            limit: Number of messages to retrieve (max 1000)
-            **kwargs: Additional parameters
-        
-        Returns:
-            Dict containing message history
-        """
-        data = {
-            'channel': channel,
-            'limit': limit,
-            **kwargs
-        }
-        
-        if oldest:
-            data['oldest'] = oldest
-        if latest:
-            data['latest'] = latest
-            
-        return self._make_request('GET', 'conversations.history', data)
-    
     def users_info(self, user: str) -> Dict[str, Any]:
         """
         Get information about a user.
@@ -267,7 +238,7 @@ class SlackHelper:
             logger.error(f"Error getting conversation history for {channel}: {e}")
             return []
     
-    def check_for_user_reply(self, channel_id: str, oldest_ts: str, user_id: str) -> Optional[str]:
+    def check_for_user_reply(self, channel_id: str, message_ts: str, user_id: str) -> Optional[str]:
         """
         Check for a reply from a specific user after a given timestamp.
         This method replicates the logic from the original slack_worker.py
@@ -282,19 +253,31 @@ class SlackHelper:
         """
         try:
             # Add small buffer to ensure we don't read our own message
-            buffer_ts = str(float(oldest_ts) + 0.000001)
-            messages = self.get_conversation_history(channel_id, oldest=buffer_ts)
-            
-            for msg in messages:
-                # Check if message is from the target user and not a bot
-                if 'bot_id' not in msg and msg.get('user') == user_id:
-                    return msg.get('text')
+            replies = self.get_message_replies(channel_id, ts=message_ts)
+
+            if len(replies) > 0:
+                first_reply = replies[0]
+                return first_reply["blocks"]["elements"][0]["elements"][0]["text"]
+                
             
             return None
             
         except Exception as e:
             logger.error(f"Error checking for reply in {channel_id}: {e}")
             return None
+
+    def get_message_replies(self, channel_id: str, ts: str):
+        data = {
+            'channel': channel_id,
+            'ts': ts
+        }
+            
+        response = self._make_request('GET', 'conversations.replies', data)
+
+        #first object in messages is the original, from second forth they are replies
+        replies = response["messages"][1:]
+        return replies
+    
     
     def test_connection(self) -> bool:
         """
