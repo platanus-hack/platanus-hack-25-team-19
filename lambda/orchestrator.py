@@ -177,15 +177,15 @@ def handler(event: Dict[str, Any], context: Any):
 
             # 2. Construct the User Prompt Content and API Payload
             USER_PROMPT = f'''
-                Analiza la siguiente declaración de problema del proyecto y los datos del registro interno de la empresa para generar la orden de ejecución completa.
+                Analyze the following project problem declaration and the internal company registry data to generate the complete execution order.
 
-                --- DECLARACIÓN COMPLETA DEL PROBLEMA (CONTEXTO):
+                --- FULL PROBLEM DECLARATION (CONTEXT):
                 {full_declaration}
 
-                --- DATOS DEL REGISTRO INTERNO (PARA MAPEO DE CONTACTOS):
+                --- INTERNAL REGISTRY DATA (FOR CONTACT MAPPING):
                 {internal_registry}
 
-                Procede con el análisis de 3 pasos (Clasificación, Lógica de Activación, Generación de Contenido) y devuelve la salida ESTRICTAMENTE en el esquema JSON requerido.
+                Proceed with the 3-step analysis (Classification, Activation Logic, Content Generation) and return the output STRICTLY in the required JSON schema.
             '''
 
             # 3. Execute the AI Orchestration
