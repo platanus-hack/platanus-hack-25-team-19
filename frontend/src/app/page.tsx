@@ -77,7 +77,7 @@ export default function Home() {
             <input
               type="text"
               placeholder="¿Qué necesitas?"
-              className="w-full bg-transparent px-5 py-4 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary)"
+              className="w-full pr-28 bg-transparent px-5 py-4 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary)"
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
             />

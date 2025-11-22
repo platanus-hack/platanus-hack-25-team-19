@@ -82,7 +82,11 @@ export default function Conversation() {
         if (savedMessages) {
             try {
                 const parsed = JSON.parse(savedMessages);
-                setMessages(parsed);
+                if (parsed.length === 1) {
+                    handleSendMessage(parsed[0].content);
+                } else {
+                    setMessages(parsed);
+                }
             } catch (error) {
                 console.error('Error loading messages:', error);
             }
@@ -225,7 +229,7 @@ export default function Conversation() {
                             <input
                                 type="text"
                                 placeholder="Type your message..."
-                                className="w-full bg-transparent px-5 py-4 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary)"
+                                className="w-full bg-transparent px-5 py-4 pr-28 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary)"
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
                                 disabled={isLoading}
