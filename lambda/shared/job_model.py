@@ -15,7 +15,7 @@ class JobModel:
     updated_at: str
 
     # Default fields
-    id: str = uuid.uuid4()
+    id: str = str(uuid.uuid4())
     result: str = ''
 
 class JobHandler:
