@@ -251,14 +251,17 @@ Job Item Structure:
 
 ## API Usage
 
-**POST /jobs**
+### POST /jobs
+Submit a new job for processing.
+
+**Request:**
 ```json
 {
   "problem": "Your problem description here"
 }
 ```
 
-Response:
+**Response:**
 ```json
 {
   "message": "Jobs created successfully",
@@ -268,6 +271,68 @@ Response:
     {"job_id": "uuid", "type": "external_research", "status": "pending"}
   ],
   "job_ids": ["uuid1", "uuid2", "uuid3"]
+}
+```
+
+### GET /jobs/{id}
+Get the status and results of a specific job. Use this endpoint to poll until the job is complete.
+
+**Response Structure:**
+```json
+{
+  "job_id": "uuid",
+  "status": "pending|processing|processing_obstacles|processing_solutions|processing_legal|processing_competitors|processing_market|completed|failed",
+  "type": "slack|market_research|external_research",
+  "instructions": "The original problem description",
+  "is_final": false,
+  "created_at": "2025-11-22T10:30:00Z",
+  "updated_at": "2025-11-22T10:31:00Z",
+  "started_at": "2025-11-22T10:30:15Z",
+  "completed_at": "2025-11-22T10:37:00Z",
+  "result": { /* Full result object when completed */ },
+  "partial_findings": { /* Intermediate findings for market_research jobs */ },
+  "error_message": "Error details if failed"
+}
+```
+
+**Job Status Flow:**
+- `pending` → Job created, queued for processing
+- `processing` → Worker has picked up the job
+- For market_research jobs:
+  - `processing_obstacles` → Analyzing obstacles
+  - `processing_solutions` → Researching solutions
+  - `processing_legal` → Analyzing legal requirements
+  - `processing_competitors` → Analyzing competitors
+  - `processing_market` → Analyzing market
+- `completed` → Job finished successfully (final state)
+- `failed` → Job encountered an error (final state)
+
+**Polling Pattern (Frontend):**
+```javascript
+async function pollJobStatus(jobId, maxAttempts = 120, intervalMs = 5000) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const response = await fetch(`https://api.example.com/jobs/${jobId}`);
+    const job = await response.json();
+
+    // Check if job is in final state
+    if (job.is_final) {
+      if (job.status === 'completed') {
+        return job.result;
+      } else {
+        throw new Error(job.error_message || 'Job failed');
+      }
+    }
+
+    // Show progress for market research jobs
+    if (job.partial_findings) {
+      console.log('Progress:', Object.keys(job.partial_findings).length + '/5 agents completed');
+    }
+
+    // Wait before next poll
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error('Job timeout - max polling attempts reached');
 }
 ```
 
