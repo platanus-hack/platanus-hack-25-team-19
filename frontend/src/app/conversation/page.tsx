@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -18,6 +19,7 @@ export default function Conversation() {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [synthesisMessage, setSynthesisMessage] = useState("");
+    const [editableSynthesis, setEditableSynthesis] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const hasInitialized = useRef(false);
 
@@ -148,6 +150,7 @@ export default function Conversation() {
 
             const data = await response.json();
             setSynthesisMessage(data.message || 'No se recibió respuesta del servidor.');
+            setEditableSynthesis(data.message || 'No se recibió respuesta del servidor.');
             setShowModal(true);
         } catch (error) {
             console.error('Error synthesizing conversation:', error);
@@ -160,8 +163,7 @@ export default function Conversation() {
 
     const handleCreateJobs = async () => {
         try {
-            const lastAssistantMessage = [...messages].reverse().find(msg => msg.role === 'assistant');
-            const problemDeclaration = synthesisMessage || lastAssistantMessage?.content || '';
+            const problemDeclaration = editableSynthesis || synthesisMessage || '';
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 900000);
@@ -171,7 +173,7 @@ export default function Conversation() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ full_problem_declaration: problemDeclaration }),
+                body: JSON.stringify({ full_problem_declaration: problemDeclaration, session_id: sessionId }),
                 signal: controller.signal,
             });
 
@@ -236,9 +238,17 @@ export default function Conversation() {
                                         : 'border border-(--color-border) bg-(--color-input-bg) text-(--color-text)'
                                 }`}
                             >
-                                <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                                    {message.content}
-                                </p>
+                                {message.role === 'assistant' ? (
+                                    <div className="prose prose-sm max-w-none text-(--color-text) prose-strong:font-semibold">
+                                        <ReactMarkdown>
+                                            {message.content}
+                                        </ReactMarkdown>
+                                    </div>
+                                ) : (
+                                    <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                                        {message.content}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -248,7 +258,7 @@ export default function Conversation() {
                             <div className="max-w-[80%] rounded-lg border border-(--color-border) bg-(--color-input-bg) px-4 py-3">
                                 <div className="flex items-center space-x-2">
                                     <div className="h-2 w-2 animate-bounce rounded-full bg-(--color-text-secondary)" style={{ animationDelay: '0ms' }}></div>
-                                    <div className="h-2 w-2 animate-bounce rounded-full bg-(--color-text-secondary)" style={{ animationDelay: '150ms' }}></div>
+                                    <div className="h-2 w-2 animate-bounce rounded-full bg-(--color-text-secondary)" style={{ animationDelay: '100ms' }}></div>
                                     <div className="h-2 w-2 animate-bounce rounded-full bg-(--color-text-secondary)" style={{ animationDelay: '300ms' }}></div>
                                 </div>
                             </div>
@@ -259,14 +269,24 @@ export default function Conversation() {
                 </div>
             </div>
 
-            {messages.length > 10 && (<button
-                type="button"
-                className="w-72 mb-8 mx-auto rounded-md bg-(--color-primary) px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-(--color-primary-hover) disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                onClick={handleSynthesizeConversation}
-                disabled={isLoading}
-            >
-                Ayudame a encontrar el problema
-            </button>)}
+            {messages.length > 0 && (
+                <button
+                    type="button"
+                    className="w-72 mb-8 mx-auto rounded-md bg-(--color-primary) px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-(--color-primary-hover) disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer relative overflow-hidden"
+                    onClick={handleSynthesizeConversation}
+                    disabled={isLoading || messages.length < 10}
+                >
+                    <div
+                        className="absolute inset-0 bg-white/20 transition-all duration-300"
+                        style={{ width: `${Math.min((messages.length / 10) * 100, 100)}%` }}
+                    />
+                    <span className="relative z-10">
+                        {messages.length >= 10
+                            ? "Ayúdame a encontrar el problema"
+                            : `Progreso ${messages.length}/10`}
+                    </span>
+                </button>
+            )}
 
             {/* Input Container */}
             <div className="border-t border-(--color-border) bg-(--color-background) px-4 py-6">
@@ -297,11 +317,13 @@ export default function Conversation() {
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                     <div className="mx-4 max-w-2xl rounded-lg border border-(--color-border) bg-(--color-background) p-8 shadow-xl">
-                        <h2 className="mb-4 text-xl font-semibold text-(--color-text)">Síntesis de la Conversación</h2>
+                        <h2 className="mb-4 text-xl font-semibold text-(--color-text) w-full md:min-w-md">Síntesis de la Conversación</h2>
                         <div className="mb-6 max-h-96 overflow-y-auto rounded-lg border border-(--color-border) bg-(--color-input-bg) p-4">
-                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-(--color-text)">
-                                {synthesisMessage}
-                            </p>
+                            <textarea
+                                className="w-full min-h-[200px] bg-transparent text-sm leading-relaxed text-(--color-text) outline-none resize-none"
+                                value={editableSynthesis}
+                                onChange={(e) => setEditableSynthesis(e.target.value)}
+                            />
                         </div>
                         <div className="flex justify-end space-x-4">
                             <button

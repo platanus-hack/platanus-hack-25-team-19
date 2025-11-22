@@ -5,13 +5,20 @@ import { useState, useEffect } from "react";
 import type { ReactElement } from "react";
 
 type JobType = 'slack' | 'data' | 'research' | 'mail' | 'market_research' | 'external_research';
-type JobStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+type JobStatus = 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'pending' | 'in_progress' | 'completed' | 'failed';
 
 interface Job {
-    job_id: string;
-    type: JobType;
+    id: string;
+    job_id?: string;
+    session_id: string;
+    job_type: JobType;
+    type?: JobType;
     status: JobStatus;
-    result?: {
+    instructions?: string;
+    context_summary?: string;
+    created_at?: string;
+    updated_at?: string;
+    result?: string | {
         content: string;
         sources?: Array<{
             title: string;
@@ -24,118 +31,39 @@ interface Job {
 export default function Jobs() {
     const router = useRouter();
 
-    const mockJobs: Job[] = [
-        {
-            job_id: "uuid-1",
-            type: "slack",
-            status: "completed",
-            result: {
-                content: "Le mandé un mensaje a Juan, él dice que no sabe nada del proyecto pero se ve interesante"
-            }
-        },
-        {
-            job_id: "uuid-2",
-            type: "market_research",
-            status: "completed",
-            result: {
-                content: "He encontrado información relevante en las siguientes fuentes:",
-                sources: [
-                    {
-                        title: "MIT Technology Review - AI Research 2024",
-                        url: "https://example.com/source1",
-                        description: "Estudio sobre implementación de IA en empresas medianas muestra un incremento del 45% en productividad."
-                    },
-                    {
-                        title: "Nature Journal - Machine Learning Applications",
-                        url: "https://example.com/source2",
-                        description: "Análisis de casos de uso en diferentes industrias revela patrones de adopción similares."
-                    },
-                    {
-                        title: "Harvard Business Review - Digital Transformation",
-                        url: "https://example.com/source3",
-                        description: "Las empresas que implementan gradualmente nuevas tecnologías tienen 3x más éxito."
-                    },
-                    {
-                        title: "Stanford Research Paper - AI Integration",
-                        url: "https://example.com/source4",
-                        description: "Metodología recomendada para proyectos piloto en organizaciones tradicionales."
-                    }
-                ]
-            }
-        },
-        {
-            job_id: "uuid-3",
-            type: "external_research",
-            status: "in_progress"
-        },
-        {
-            job_id: "uuid-4",
-            type: "data",
-            status: "pending"
-        }
-    ];
+    const [jobs, setJobs] = useState<Job[]>([]);
 
-    const [jobs, setJobs] = useState<Job[]>(() => {
-        // For now, use mock data instead of localStorage
-        return mockJobs;
-
-        // Uncomment this when API is ready:
-        // if (typeof window === 'undefined') return [];
-        // const savedJobs = localStorage.getItem('current-jobs');
-        // if (savedJobs) {
-        //     try {
-        //         return JSON.parse(savedJobs);
-        //     } catch (error) {
-        //         console.error('Error loading jobs:', error);
-        //         return [];
-        //     }
-        // }
-        // return [];
+    const [sessionId] = useState<string | null>(() => {
+        if (typeof window === 'undefined') return null;
+        return localStorage.getItem('conversation-session-id');
     });
 
+    const [isLoading, setIsLoading] = useState(true);
+
     useEffect(() => {
-        if (jobs.length === 0) return;
+        if (!sessionId) return;
 
-        const pendingJobs = jobs.filter(job => job.status === 'pending' || job.status === 'in_progress');
-        if (pendingJobs.length === 0) return;
-
-        const interval = setInterval(async () => {
+        const pollJobs = async () => {
             try {
-                const updatedJobsPromises = pendingJobs.map(async (job) => {
-                    try {
-                        const response = await fetch(`/jobs/${job.job_id}`);
-                        if (response.ok) {
-                            return await response.json();
-                        }
-                        return null;
-                    } catch (error) {
-                        console.error(`Error fetching job ${job.job_id}:`, error);
-                        return null;
-                    }
-                });
-
-                const updatedJobsResults = await Promise.all(updatedJobsPromises);
-                const updatedJobs = updatedJobsResults.filter(job => job !== null);
-
-                if (updatedJobs.length > 0) {
-                    setJobs(prevJobs =>
-                        prevJobs.map(job => {
-                            const updated = updatedJobs.find((uj: Job) => uj.job_id === job.job_id);
-                            return updated || job;
-                        })
-                    );
-                    setJobs(prevJobs => {
-                        localStorage.setItem('current-jobs', JSON.stringify(prevJobs));
-                        return prevJobs;
-                    });
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/jobs?session_id=${sessionId}`);
+                if (response.ok) {
+                    const updatedJobs = await response.json();
+                    setJobs(updatedJobs);
+                    setIsLoading(false);
+                    localStorage.setItem('current-jobs', JSON.stringify(updatedJobs));
                 }
             } catch (error) {
                 console.error('Error polling job status:', error);
+                setIsLoading(false);
             }
-        }, 3000); // Poll every 3 seconds
+        };
+
+        pollJobs();
+
+        const interval = setInterval(pollJobs, 5000);
 
         return () => clearInterval(interval);
-    }, [jobs]);
+    }, [sessionId]);
 
     const getServiceConfig = (type: JobType) => {
         const configs: Record<JobType, { name: string; description: string; icon: ReactElement; color: string }> = {
@@ -217,13 +145,15 @@ export default function Jobs() {
     };
 
     const getStatusBadge = (status: JobStatus) => {
+        const normalizedStatus = status.toLowerCase();
         const badges = {
+            created: { text: 'Pendiente', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' },
             pending: { text: 'Pendiente', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50' },
             in_progress: { text: 'En Progreso', color: 'bg-blue-500/20 text-blue-400 border-blue-500/50' },
             completed: { text: 'Completado', color: 'bg-green-500/20 text-green-400 border-green-500/50' },
             failed: { text: 'Fallido', color: 'bg-red-500/20 text-red-400 border-red-500/50' }
         };
-        return badges[status];
+        return badges[normalizedStatus as keyof typeof badges];
     };
 
     return (
@@ -251,29 +181,57 @@ export default function Jobs() {
                             Trabajos en Curso
                         </h2>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                            {jobs.map((job) => {
-                                const config = getServiceConfig(job.type);
-                                const statusBadge = getStatusBadge(job.status);
-                                return (
-                                    <div
-                                        key={job.job_id}
-                                        className="group flex flex-col gap-3 rounded-xl border border-(--color-border) bg-(--color-input-bg) p-5 text-left"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div className={`flex h-8 w-8 items-center justify-center rounded-lg border bg-linear-to-br ${config.color}`}>
-                                                {config.icon}
+                            {isLoading ? (
+                                // Skeleton loaders
+                                <>
+                                    {[1, 2, 3, 4].map((i) => (
+                                        <div
+                                            key={i}
+                                            className="group flex flex-col gap-3 rounded-xl border border-(--color-border) bg-(--color-input-bg) p-5 text-left animate-pulse"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="h-8 w-8 rounded-lg bg-(--color-border)"></div>
+                                                <div className="h-5 w-20 rounded bg-(--color-border)"></div>
                                             </div>
-                                            <span className={`rounded border px-2 py-0.5 text-xs font-medium ${statusBadge.color}`}>
-                                                {statusBadge.text}
-                                            </span>
+                                            <div>
+                                                <div className="h-4 w-24 rounded bg-(--color-border)"></div>
+                                                <div className="mt-2 h-3 w-32 rounded bg-(--color-border)"></div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h3 className="text-sm font-medium text-(--color-text)">{config.name}</h3>
-                                            <p className="mt-1 text-xs text-(--color-text-secondary)">{config.description}</p>
+                                    ))}
+                                </>
+                            ) : (
+                                jobs.map((job) => {
+                                    const jobType = job.job_type || job.type;
+                                    const jobId = job.id || job.job_id;
+                                    if (!jobType) return null;
+
+                                    const config = getServiceConfig(jobType);
+                                    const statusBadge = getStatusBadge(job.status);
+
+                                    if (!config || !statusBadge) return null;
+
+                                    return (
+                                        <div
+                                            key={jobId}
+                                            className="group flex flex-col gap-3 rounded-xl border border-(--color-border) bg-(--color-input-bg) p-5 text-left"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className={`flex h-8 w-8 items-center justify-center rounded-lg border bg-linear-to-br ${config.color}`}>
+                                                    {config.icon}
+                                                </div>
+                                                <span className={`rounded border px-2 py-0.5 text-xs font-medium ${statusBadge.color}`}>
+                                                    {statusBadge.text}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-sm font-medium text-(--color-text)">{config.name}</h3>
+                                                <p className="mt-1 text-xs text-(--color-text-secondary)">{config.description}</p>
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
 
@@ -282,53 +240,76 @@ export default function Jobs() {
                             Resultados
                         </h2>
                         <div className="space-y-4">
-                            {jobs.filter(j => j.status === 'completed' && j.result).length === 0 && (
+                            {isLoading ? (
+                                // Skeleton loader for results
+                                <div className="animate-pulse rounded-lg border border-(--color-border) bg-(--color-input-bg) p-4">
+                                    <div className="mb-2 h-5 w-32 rounded bg-(--color-border)"></div>
+                                    <div className="h-4 w-full rounded bg-(--color-border)"></div>
+                                    <div className="mt-2 h-4 w-3/4 rounded bg-(--color-border)"></div>
+                                </div>
+                            ) : jobs.filter(j => {
+                                const isCompleted = j.status.toLowerCase() === 'completed';
+                                const hasResult = j.result && (typeof j.result === 'string' ? j.result.trim() !== '' : true);
+                                return isCompleted && hasResult;
+                            }).length === 0 ? (
                                 <div className="rounded-lg border border-(--color-border) bg-(--color-input-bg) p-4 text-sm italic text-(--color-text-secondary)">
                                     Esperando resultados...
                                 </div>
-                            )}
-                            {jobs.filter(j => j.status === 'completed' && j.result).map((job) => {
-                                const config = getServiceConfig(job.type);
-                                return (
-                                    <div
-                                        key={job.job_id}
-                                        className="animate-fade-in rounded-lg border border-(--color-border) bg-(--color-input-bg) p-4"
-                                    >
-                                        <div className="mb-2 flex items-center gap-2">
-                                            <span className="rounded bg-(--color-primary) px-2 py-0.5 text-xs font-medium text-white">
-                                                {config.name}
-                                            </span>
-                                        </div>
-                                        <p className="text-sm text-(--color-text)">{job.result?.content}</p>
+                            ) : (
+                                jobs.filter(j => {
+                                    const isCompleted = j.status.toLowerCase() === 'completed';
+                                    const hasResult = j.result && (typeof j.result === 'string' ? j.result.trim() !== '' : true);
+                                    return isCompleted && hasResult;
+                                }).map((job) => {
+                                    const jobType = job.job_type || job.type;
+                                    const jobId = job.id || job.job_id;
+                                    if (!jobType) return null;
 
-                                        {job.result?.sources && job.result.sources.length > 0 && (
-                                            <div className="mt-4 space-y-3">
-                                                {job.result.sources.map((source, sourceIndex) => (
-                                                    <div
-                                                        key={sourceIndex}
-                                                        className="rounded-lg border border-(--color-border) bg-(--color-background) p-3"
-                                                    >
-                                                        <h4 className="mb-1 text-sm font-medium text-(--color-text)">
-                                                            {sourceIndex + 1}. {source.title}
-                                                        </h4>
-                                                        <p className="mb-2 text-xs text-(--color-text-secondary)">
-                                                            {source.description}
-                                                        </p>
-                                                        <a
-                                                            href={source.url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-xs text-(--color-primary) hover:underline"
-                                                        >
-                                                            {source.url}
-                                                        </a>
-                                                    </div>
-                                                ))}
+                                    const config = getServiceConfig(jobType);
+                                    const resultContent = typeof job.result === 'string' ? job.result : job.result?.content;
+                                    const resultSources = typeof job.result === 'object' ? job.result?.sources : undefined;
+
+                                    return (
+                                        <div
+                                            key={jobId}
+                                            className="animate-fade-in rounded-lg border border-(--color-border) bg-(--color-input-bg) p-4"
+                                        >
+                                            <div className="mb-2 flex items-center gap-2">
+                                                <span className="rounded bg-(--color-primary) px-2 py-0.5 text-xs font-medium text-white">
+                                                    {config.name}
+                                                </span>
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                            <p className="text-sm text-(--color-text)">{resultContent}</p>
+
+                                            {resultSources && resultSources.length > 0 && (
+                                                <div className="mt-4 space-y-3">
+                                                    {resultSources.map((source, sourceIndex) => (
+                                                        <div
+                                                            key={sourceIndex}
+                                                            className="rounded-lg border border-(--color-border) bg-(--color-background) p-3"
+                                                        >
+                                                            <h4 className="mb-1 text-sm font-medium text-(--color-text)">
+                                                                {sourceIndex + 1}. {source.title}
+                                                            </h4>
+                                                            <p className="mb-2 text-xs text-(--color-text-secondary)">
+                                                                {source.description}
+                                                            </p>
+                                                            <a
+                                                                href={source.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-xs text-(--color-primary) hover:underline"
+                                                            >
+                                                                {source.url}
+                                                            </a>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
                 </div>

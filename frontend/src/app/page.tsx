@@ -12,9 +12,9 @@ export default function Home() {
   const router = useRouter();
 
   const actions = useMemo(() => [
-    { text: "valida tu hipótesis", color: "text-blue-400" },
-    { text: "descubre el dolor real", color: "text-emerald-400" },
-    { text: "compara soluciones", color: "text-purple-400" }
+    { text: "antes de gastar de más", color: "text-(--color-text)" },
+    { text: "prioriza lo que importa", color: "text-(--color-text)" },
+    { text: "no pierdas tiempo", color: "text-(--color-text)" }
   ], []);
 
   useEffect(() => {
@@ -61,14 +61,14 @@ export default function Home() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-(--color-background) px-4">
       <main className="flex w-full max-w-3xl flex-col items-center text-center">
-        <h1 className="mb-4 min-h-[2.5em] text-4xl font-semibold tracking-tight text-(--color-text) md:text-6xl lg:text-7xl">
-          MarkIA y{" "}
+        <h1 className="text-emerald-400 min-h-[2.5em] text-4xl font-semibold tracking-tight md:text-6xl lg:text-7xl">
+          GreenLight{" "}
           <span className={`${actions[currentActionIndex].color} transition-colors duration-300`}>
             {text}
             <span className="animate-pulse">|</span>
           </span>
         </h1>
-        <p className="mb-12 text-lg text-(--color-text-secondary) md:text-xl">
+        <p className="mb-12 max-w-xl text-lg text-(--color-text-secondary) md:text-xl">
           Resolver el problema equivocado sale carísimo: compara, investiga y confirma.
         </p>
 
