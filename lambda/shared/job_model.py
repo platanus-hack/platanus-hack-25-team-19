@@ -16,7 +16,7 @@ class JobModel:
     updated_at: str
 
     # Default fields
-    id: str = str(uuid.uuid4())
+    id: str = ''
     result: str = ''
 
 class JobHandler:
@@ -24,6 +24,8 @@ class JobHandler:
         self.jobs_table = dynamodb.Table(jobs_table_name)
 
     def create(self, job: JobModel) -> None:
+        job.id = str(uuid.uuid4())
+
         self.jobs_table.put_item(Item=job.__dict__)
 
     def find(self, session_id: str) -> list[JobModel]:

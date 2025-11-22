@@ -343,21 +343,7 @@ class HackatonPlatanusStack(Stack):
         # Grant DynamoDB permissions to chat lambda
         chat_sessions_table.grant_read_write_data(chat_lambda)
 
-        # Create Get Job Status Lambda function
-        get_job_status_lambda = _lambda.Function(
-            self, "GetJobStatusFunction",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="get_job_status.handler",
-            code=_lambda.Code.from_asset(lambda_code_path),
-            timeout=Duration.seconds(10),
-            memory_size=256,
-            description="Get job status Lambda",
-            function_name="get_job_status",
-            environment={
-                "JOBS_TABLE_NAME": jobs_table.table_name
-            }
-        )
-
+        # Create Get Jobs Lambda function
         get_jobs_lambda = _lambda.Function(
             self, "GetJobsFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
@@ -377,12 +363,11 @@ class HackatonPlatanusStack(Stack):
             }
         )
 
-        # Grant DynamoDB read permissions to get_job_status lambda
-        jobs_table.grant_read_data(get_job_status_lambda)
+        # Grant DynamoDB read permissions to get_jobs lambda
         jobs_table.grant_read_data(get_jobs_lambda)
-        slack_queue.grant_send_messages(orchestrator_lambda)
-        market_research_queue.grant_send_messages(orchestrator_lambda)
-        external_research_queue.grant_send_messages(orchestrator_lambda)
+        slack_queue.grant_send_messages(get_jobs_lambda)
+        market_research_queue.grant_send_messages(get_jobs_lambda)
+        external_research_queue.grant_send_messages(get_jobs_lambda)
 
         # Create API Gateway REST API
         api = apigateway.RestApi(
@@ -417,29 +402,10 @@ class HackatonPlatanusStack(Stack):
         # Add GET method to /jobs endpoint
         jobs_resource.add_method("GET", get_jobs_integration)
 
-        # Create /jobs/{id} resource for getting job status
-        job_id_resource = jobs_resource.add_resource("{id}")
-
-        # Add Lambda integration for get job status
-        get_job_status_integration = apigateway.LambdaIntegration(
-            get_job_status_lambda,
-            proxy=True
-        )
-
-        # Add GET method to /jobs/{id} endpoint
-        job_id_resource.add_method("GET", get_job_status_integration)
-
         # Add CORS support for /jobs
         jobs_resource.add_cors_preflight(
             allow_origins=["*"],
             allow_methods=["POST", "OPTIONS"],
-            allow_headers=["Content-Type", "Authorization"]
-        )
-
-        # Add CORS support for /jobs/{id}
-        job_id_resource.add_cors_preflight(
-            allow_origins=["*"],
-            allow_methods=["GET", "OPTIONS"],
             allow_headers=["Content-Type", "Authorization"]
         )
 
