@@ -79,7 +79,7 @@ class JobHandler:
         self._update(session_id, job_id, 'IN_PROGRESS', result)
 
     def mark_completed(self, session_id: str, job_id: str, result: str) -> None:
-        self._update(session_id, job_id, 'COMPLETED')
+        self._update(session_id, job_id, 'COMPLETED', result)
 
     def mark_failed(self, session_id: str, job_id: str, result: str) -> None:
         self._update(session_id, job_id, 'FAILED', result)

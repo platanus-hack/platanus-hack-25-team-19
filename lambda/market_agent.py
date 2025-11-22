@@ -1,8 +1,7 @@
 import json
 import logging
 import os
-from shared.anthropic import Anthropic, ConversationMessage
-from datetime import datetime
+from shared.anthropic import Anthropic
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -62,28 +61,33 @@ def run_market_analysis(
     """
     Analyze market dynamics using Claude with web search.
     """
-    system_prompt = """You are an expert market analyst specializing in market sizing, trends, and customer analysis.
+    system_prompt = """Eres un analista de mercado experto especializado en \
+dimensionamiento de mercado, tendencias y análisis de clientes.
 
-Your role is to research and quantify:
-1. Market size - TAM (Total Addressable Market), SAM (Serviceable Addressable Market), SOM (Serviceable Obtainable Market)
-2. Growth trends - historical growth rates, projections, driving factors
-3. Customer segments - who are the buyers, their characteristics, needs, and behaviors
-4. Pricing benchmarks - what similar products cost, pricing models, willingness to pay
+Tu rol es investigar y cuantificar:
+1. Tamaño de mercado - TAM (Total Addressable Market), SAM (Serviceable \
+Addressable Market), SOM (Serviceable Obtainable Market)
+2. Tendencias de crecimiento - tasas de crecimiento históricas, proyecciones, \
+factores impulsores
+3. Segmentos de clientes - quiénes son los compradores, sus características, \
+necesidades y comportamientos
+4. Benchmarks de precio - cuánto cuestan productos similares, modelos de \
+precio, disposición a pagar
 
-For each area, provide:
-- Specific numbers and data points with sources
-- Geographic breakdown (global vs regional)
-- Time-based trends (historical and projected)
-- Supporting evidence and methodology
+Para cada área, proporciona:
+- Números específicos y puntos de datos con fuentes
+- Desglose geográfico (global vs regional)
+- Tendencias basadas en tiempo (históricas y proyectadas)
+- Evidencia de soporte y metodología
 
-Use web_search to find:
-- Market research reports and industry analyses
-- Company financials and metrics
-- Customer surveys and reviews
-- Pricing information from competitor websites
-- Industry publications and statistics
+Usa web_search para encontrar:
+- Reportes de investigación de mercado y análisis de industria
+- Finanzas de empresas y métricas
+- Encuestas y reseñas de clientes
+- Información de precios de sitios web de competidores
+- Publicaciones y estadísticas de la industria
 
-Output your findings as a JSON object with this structure:
+Entrega tus hallazgos como un objeto JSON con esta estructura:
 {
   "market_size": {
     "tam": {"value": "...", "unit": "USD|users|...", "year": "...", "source": "..."},
@@ -94,8 +98,8 @@ Output your findings as a JSON object with this structure:
     "historical_cagr": "...",
     "projected_cagr": "...",
     "time_period": "...",
-    "drivers": ["driver 1", "driver 2", ...],
-    "headwinds": ["headwind 1", "headwind 2", ...]
+    "drivers": ["impulsor 1", "impulsor 2", ...],
+    "headwinds": ["viento en contra 1", "viento en contra 2", ...]
   },
   "customer_segments": [
     {
@@ -118,34 +122,47 @@ Output your findings as a JSON object with this structure:
 }"""
 
     previous_context = f"""
-PREVIOUS FINDINGS - OBSTACLES:
+HALLAZGOS PREVIOS - OBSTÁCULOS:
 {json.dumps(obstacles_findings, indent=2)}
 
-PREVIOUS FINDINGS - SOLUTIONS:
+HALLAZGOS PREVIOS - SOLUCIONES:
 {json.dumps(solutions_findings, indent=2)}
 
-PREVIOUS FINDINGS - LEGAL:
+HALLAZGOS PREVIOS - LEGAL:
 {json.dumps(legal_findings, indent=2)}
 
-PREVIOUS FINDINGS - COMPETITORS:
+HALLAZGOS PREVIOS - COMPETIDORES:
 {json.dumps(competitor_findings, indent=2)}
 """
 
-    user_prompt = f"""PROBLEM CONTEXT:
+    user_prompt = f"""CONTEXTO DEL PROBLEMA:
 {problem_context}
 
 {previous_context}
 
-Given the problem and all previous research, please analyze the market dynamics. Use web search to find:
-- Market size data and projections
-- Growth rates and trends
-- Customer segments and characteristics
-- Pricing benchmarks and models
-- Industry reports and statistics
+Dado el problema y toda la investigación previa, por favor analiza las \
+dinámicas del mercado. Usa búsqueda web para encontrar:
+- Datos de tamaño de mercado y proyecciones
+- Tasas de crecimiento y tendencias
+- Segmentos y características de clientes
+- Benchmarks y modelos de precio
+- Reportes y estadísticas de la industria
 
-Focus on quantitative data with clear sources. Be specific with numbers, time periods, and geographies."""
+Enfócate en datos cuantitativos con fuentes claras. Sé específico con \
+números, períodos de tiempo y geografías."""
 
-    logger.info("Calling Claude API for market analysis...")
+    # Use Anthropic's built-in server-side web search
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+        }
+    ]
+
+    print("=" * 80)
+    print("MARKET AGENT: Calling Claude API with built-in web search...")
+    print("=" * 80)
 
     response = anthropic.send_message(
         messages=[ConversationMessage(
@@ -154,18 +171,21 @@ Focus on quantitative data with clear sources. Be specific with numbers, time pe
             timestamp=datetime.utcnow().isoformat()
         )],
         system=system_prompt,
-        tools=[
-            {
-                "name": "web_search",
-                "description": "Search the web for information",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {"query": {"type": "string", "description": "The search query"}},
-                    "required": ["query"],
-                },
-            }
-        ],
+        messages=[{"role": "user", "content": user_prompt}],
+        tools=tools
     )
+
+    print("=" * 80)
+    print(f"MARKET AGENT: Response stop_reason: {response.stop_reason}")
+    print(f"MARKET AGENT: Response has {len(response.content)} content blocks")
+    
+    # Log web search usage if present
+    if hasattr(response, 'usage'):
+        server_tool_use = response.usage.get('server_tool_use', {})
+        if server_tool_use:
+            searches = server_tool_use.get('web_search_requests', 0)
+            print(f"MARKET AGENT: Web searches performed: {searches}")
+    print("=" * 80)
 
     # Extract and parse response
     result = extract_json_from_response(response)
@@ -185,7 +205,9 @@ def extract_json_from_response(response):
         if block.type == "text":
             text_content += block.text
 
-    logger.info(f"Raw response text: {text_content[:500]}...")
+    print("=" * 80)
+    print(f"MARKET AGENT: Raw response text: {text_content[:500]}...")
+    print("=" * 80)
 
     # Try to extract JSON from markdown code blocks
     json_match = re.search(r"```json\s*(\{.*?\})\s*```", text_content, re.DOTALL)
@@ -193,7 +215,7 @@ def extract_json_from_response(response):
         try:
             return json.loads(json_match.group(1))
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse JSON from code block: {e}")
+            print(f"MARKET AGENT: Failed to parse JSON from code block: {e}")
 
     # Try to find JSON object in text
     json_match = re.search(r"\{.*\}", text_content, re.DOTALL)
@@ -201,10 +223,10 @@ def extract_json_from_response(response):
         try:
             return json.loads(json_match.group(0))
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse JSON object: {e}")
+            print(f"MARKET AGENT: Failed to parse JSON object: {e}")
 
     # If all else fails, return structured error
-    logger.warning("Could not extract JSON from response, returning raw text")
+    print("MARKET AGENT: Could not extract JSON from response, returning raw text")
     return {
         "market_size": {},
         "growth_trends": {},

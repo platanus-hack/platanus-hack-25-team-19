@@ -7,6 +7,7 @@ from typing import Dict, Any, List
 from shared.anthropic import Anthropic, ConversationMessage
 from shared.job_model import JobModel, JobHandler
 
+
 def get_organization_registry() -> List[Dict[str, Any]]:
     """Get organization data with fallback for when module is not available."""
     try:
@@ -15,6 +16,7 @@ def get_organization_registry() -> List[Dict[str, Any]]:
     except ImportError:
         logger.warning("Organization diagram module not found, using empty data")
         return []
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -94,6 +96,7 @@ def get_orchestrator_job_schema():
 
 # --- SYSTEM INSTRUCTION ---
 
+
 SYSTEM_INSTRUCTION = '''
 You are the Project Risk Orchestrator (PRO), an AI designed to challenge corporate inertia and validate project ideas.
 Your sole purpose is to analyze the completeness of the problem declaration and determine the most efficient, non-redundant research path.
@@ -143,6 +146,7 @@ def call_anthropic_with_jobs(system: str, user_prompt: str) -> Dict[str, Any]:
         logger.error(f"Error calling Anthropic API: {e}")
         raise
 # --- MAIN HANDLER ---
+
 
 def handler(event: Dict[str, Any], context: Any):
     """

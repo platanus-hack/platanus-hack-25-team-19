@@ -1,8 +1,7 @@
 import json
 import logging
 import os
-from shared.anthropic import Anthropic, ConversationMessage
-from datetime import datetime
+from shared.anthropic import Anthropic
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -52,29 +51,32 @@ def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
     """
     Analyze legal and regulatory requirements using Claude with web search.
     """
-    system_prompt = """You are an expert legal and regulatory analyst specializing in compliance requirements for new businesses and products.
+    system_prompt = """Eres un analista experto legal y regulatorio \
+especializado en requisitos de cumplimiento para nuevos negocios y productos.
 
-Your role is to research and identify:
-1. Industry-specific regulations - sector-specific laws and compliance requirements
-2. Data protection - GDPR, CCPA, data privacy laws
-3. Financial regulations - payment processing, money transmission, securities laws
-4. Regional variations - how regulations differ by country/state
-5. Licensing and certification requirements
+Tu rol es investigar e identificar:
+1. Regulaciones específicas de la industria - leyes específicas del sector \
+y requisitos de cumplimiento
+2. Protección de datos - GDPR, CCPA, leyes de privacidad de datos
+3. Regulaciones financieras - procesamiento de pagos, transmisión de dinero, \
+leyes de valores
+4. Variaciones regionales - cómo las regulaciones difieren por país/estado
+5. Requisitos de licencias y certificación
 
-For each regulatory category, provide:
-- Specific regulations and laws (with official names/codes)
-- Jurisdictions where they apply
-- Compliance requirements and steps
-- Potential penalties for non-compliance
-- Timeline and complexity for compliance
+Para cada categoría regulatoria, proporciona:
+- Regulaciones y leyes específicas (con nombres/códigos oficiales)
+- Jurisdicciones donde aplican
+- Requisitos y pasos de cumplimiento
+- Penalidades potenciales por incumplimiento
+- Línea de tiempo y complejidad para el cumplimiento
 
-Use web_search to find:
-- Current regulations and recent changes
-- Industry-specific compliance requirements
-- Regulatory bodies and authorities
-- Real examples of compliance issues from similar products
+Usa web_search para encontrar:
+- Regulaciones actuales y cambios recientes
+- Requisitos de cumplimiento específicos de la industria
+- Organismos y autoridades regulatorias
+- Ejemplos reales de problemas de cumplimiento de productos similares
 
-Output your findings as a JSON object with this structure:
+Entrega tus hallazgos como un objeto JSON con esta estructura:
 {
   "industry_regulations": [
     {"regulation": "...", "jurisdiction": "...", "requirements": "...", "complexity": "high|medium|low"}
@@ -92,28 +94,40 @@ Output your findings as a JSON object with this structure:
 }"""
 
     previous_context = f"""
-PREVIOUS FINDINGS - OBSTACLES:
+HALLAZGOS PREVIOS - OBSTÁCULOS:
 {json.dumps(obstacles_findings, indent=2)}
 
-PREVIOUS FINDINGS - SOLUTIONS:
+HALLAZGOS PREVIOS - SOLUCIONES:
 {json.dumps(solutions_findings, indent=2)}
 """
 
-    user_prompt = f"""PROBLEM CONTEXT:
+    user_prompt = f"""CONTEXTO DEL PROBLEMA:
 {problem_context}
 
 {previous_context}
 
-Given the problem and previous research, please analyze the legal and regulatory landscape. Use web search to find:
-- Relevant industry regulations
-- Data protection and privacy requirements
-- Financial/payment regulations (if applicable)
-- Licensing or certification needs
-- Regional differences in regulations
+Dado el problema y la investigación previa, por favor analiza el panorama \
+legal y regulatorio. Usa búsqueda web para encontrar:
+- Regulaciones relevantes de la industria
+- Requisitos de protección de datos y privacidad
+- Regulaciones financieras/de pago (si aplica)
+- Necesidades de licencias o certificación
+- Diferencias regionales en regulaciones
 
-Provide specific, actionable information with sources."""
+Proporciona información específica y accionable con fuentes."""
 
-    logger.info("Calling Claude API for legal analysis...")
+    # Use Anthropic's built-in server-side web search
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+        }
+    ]
+
+    print("=" * 80)
+    print("LEGAL AGENT: Calling Claude API with built-in web search...")
+    print("=" * 80)
 
     response = anthropic.send_message(
         messages=[ConversationMessage(
@@ -122,18 +136,21 @@ Provide specific, actionable information with sources."""
             timestamp=datetime.utcnow().isoformat()
         )],
         system=system_prompt,
-        tools=[
-            {
-                "name": "web_search",
-                "description": "Search the web for information",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {"query": {"type": "string", "description": "The search query"}},
-                    "required": ["query"],
-                },
-            }
-        ],
+        messages=[{"role": "user", "content": user_prompt}],
+        tools=tools
     )
+
+    print("=" * 80)
+    print(f"LEGAL AGENT: Response stop_reason: {response.stop_reason}")
+    print(f"LEGAL AGENT: Response has {len(response.content)} content blocks")
+    
+    # Log web search usage if present
+    if hasattr(response, 'usage'):
+        server_tool_use = response.usage.get('server_tool_use', {})
+        if server_tool_use:
+            searches = server_tool_use.get('web_search_requests', 0)
+            print(f"LEGAL AGENT: Web searches performed: {searches}")
+    print("=" * 80)
 
     # Extract and parse response
     result = extract_json_from_response(response)
@@ -153,7 +170,9 @@ def extract_json_from_response(response):
         if block.type == "text":
             text_content += block.text
 
-    logger.info(f"Raw response text: {text_content[:500]}...")
+    print("=" * 80)
+    print(f"LEGAL AGENT: Raw response text: {text_content[:500]}...")
+    print("=" * 80)
 
     # Try to extract JSON from markdown code blocks
     json_match = re.search(r"```json\s*(\{.*?\})\s*```", text_content, re.DOTALL)
@@ -161,7 +180,7 @@ def extract_json_from_response(response):
         try:
             return json.loads(json_match.group(1))
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse JSON from code block: {e}")
+            print(f"LEGAL AGENT: Failed to parse JSON from code block: {e}")
 
     # Try to find JSON object in text
     json_match = re.search(r"\{.*\}", text_content, re.DOTALL)
@@ -169,10 +188,10 @@ def extract_json_from_response(response):
         try:
             return json.loads(json_match.group(0))
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse JSON object: {e}")
+            print(f"LEGAL AGENT: Failed to parse JSON object: {e}")
 
     # If all else fails, return structured error
-    logger.warning("Could not extract JSON from response, returning raw text")
+    print("LEGAL AGENT: Could not extract JSON from response, returning raw text")
     return {
         "industry_regulations": [],
         "data_protection": [],

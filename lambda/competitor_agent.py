@@ -1,8 +1,7 @@
 import json
 import logging
 import os
-from shared.anthropic import Anthropic, ConversationMessage
-from datetime import datetime
+from shared.anthropic import Anthropic
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -57,32 +56,36 @@ def run_competitor_analysis(
     """
     Analyze competitive landscape using Claude with web search.
     """
-    system_prompt = """You are an expert competitive intelligence analyst specializing in market analysis.
+    system_prompt = """Eres un analista experto en inteligencia competitiva \
+especializado en análisis de mercado.
 
-Your role is to research and identify:
-1. Direct competitors - companies/products solving the exact same problem
-2. Indirect competitors - alternative solutions or substitute products
-3. Market structure - is it monopolistic, oligopolistic, fragmented, or emerging?
-4. Entry barriers - what makes it hard for new entrants to compete?
-5. White space opportunities - underserved segments or gaps in the market
+Tu rol es investigar e identificar:
+1. Competidores directos - empresas/productos resolviendo exactamente el \
+mismo problema
+2. Competidores indirectos - soluciones alternativas o productos sustitutos
+3. Estructura de mercado - ¿es monopolístico, oligopolístico, fragmentado o \
+emergente?
+4. Barreras de entrada - ¿qué dificulta que nuevos entrantes compitan?
+5. Oportunidades de espacio blanco - segmentos desatendidos o brechas en \
+el mercado
 
-For each competitor category, provide:
-- Company/product names with URLs
-- Their approach and value proposition
-- Strengths and weaknesses
-- Market position (leader, challenger, niche)
-- Funding/revenue (if available)
-- Recent developments or news
+Para cada categoría de competidor, proporciona:
+- Nombres de empresa/producto con URLs
+- Su enfoque y propuesta de valor
+- Fortalezas y debilidades
+- Posición en el mercado (líder, retador, nicho)
+- Financiamiento/ingresos (si está disponible)
+- Desarrollos o noticias recientes
 
-Use web_search and web_fetch to find:
-- Current players in the market
-- Recent funding announcements
-- Product launches and features
-- Market share data
-- Customer reviews and sentiment
-- Industry reports and analysis
+Usa web_search y web_fetch para encontrar:
+- Jugadores actuales en el mercado
+- Anuncios recientes de financiamiento
+- Lanzamientos de productos y características
+- Datos de participación de mercado
+- Reseñas y sentimiento de clientes
+- Reportes y análisis de la industria
 
-Output your findings as a JSON object with this structure:
+Entrega tus hallazgos como un objeto JSON con esta estructura:
 {
   "direct_competitors": [
     {
@@ -115,36 +118,48 @@ Output your findings as a JSON object with this structure:
       "severity": "high|medium|low"
     }
   ],
-  "white_space": ["opportunity 1", "opportunity 2", ...],
+  "white_space": ["oportunidad 1", "oportunidad 2", ...],
   "sources": ["url 1", "url 2", ...]
 }"""
 
     previous_context = f"""
-PREVIOUS FINDINGS - OBSTACLES:
+HALLAZGOS PREVIOS - OBSTÁCULOS:
 {json.dumps(obstacles_findings, indent=2)}
 
-PREVIOUS FINDINGS - SOLUTIONS:
+HALLAZGOS PREVIOS - SOLUCIONES:
 {json.dumps(solutions_findings, indent=2)}
 
-PREVIOUS FINDINGS - LEGAL:
+HALLAZGOS PREVIOS - LEGAL:
 {json.dumps(legal_findings, indent=2)}
 """
 
-    user_prompt = f"""PROBLEM CONTEXT:
+    user_prompt = f"""CONTEXTO DEL PROBLEMA:
 {problem_context}
 
 {previous_context}
 
-Given the problem and previous research, please analyze the competitive landscape. Use web search to find:
-- Direct and indirect competitors
-- Market structure and dynamics
-- Entry barriers and moats
-- Opportunities and white space
-- Recent competitive developments
+Dado el problema y la investigación previa, por favor analiza el panorama \
+competitivo. Usa búsqueda web para encontrar:
+- Competidores directos e indirectos
+- Estructura y dinámicas del mercado
+- Barreras de entrada y ventajas competitivas
+- Oportunidades y espacio blanco
+- Desarrollos competitivos recientes
 
-Provide detailed, current information with sources."""
+Proporciona información detallada y actualizada con fuentes."""
 
-    logger.info("Calling Claude API for competitor analysis...")
+    # Use Anthropic's built-in server-side web search
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+        }
+    ]
+
+    print("=" * 80)
+    print("COMPETITOR AGENT: Calling Claude API with built-in web search...")
+    print("=" * 80)
 
     response = anthropic.send_message(
         messages=[ConversationMessage(
@@ -153,27 +168,21 @@ Provide detailed, current information with sources."""
             timestamp=datetime.utcnow().isoformat()
         )],
         system=system_prompt,
-        tools=[
-            {
-                "name": "web_search",
-                "description": "Search the web for information",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {"query": {"type": "string", "description": "The search query"}},
-                    "required": ["query"],
-                },
-            },
-            {
-                "name": "web_fetch",
-                "description": "Fetch and read the full content of a webpage",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {"url": {"type": "string", "description": "The URL to fetch"}},
-                    "required": ["url"],
-                },
-            },
-        ],
+        messages=[{"role": "user", "content": user_prompt}],
+        tools=tools
     )
+
+    print("=" * 80)
+    print(f"COMPETITOR AGENT: Response stop_reason: {response.stop_reason}")
+    print(f"COMPETITOR AGENT: Response has {len(response.content)} content blocks")
+    
+    # Log web search usage if present
+    if hasattr(response, 'usage'):
+        server_tool_use = response.usage.get('server_tool_use', {})
+        if server_tool_use:
+            searches = server_tool_use.get('web_search_requests', 0)
+            print(f"COMPETITOR AGENT: Web searches performed: {searches}")
+    print("=" * 80)
 
     # Extract and parse response
     result = extract_json_from_response(response)
@@ -193,7 +202,9 @@ def extract_json_from_response(response):
         if block.type == "text":
             text_content += block.text
 
-    logger.info(f"Raw response text: {text_content[:500]}...")
+    print("=" * 80)
+    print(f"COMPETITOR AGENT: Raw response text: {text_content[:500]}...")
+    print("=" * 80)
 
     # Try to extract JSON from markdown code blocks
     json_match = re.search(r"```json\s*(\{.*?\})\s*```", text_content, re.DOTALL)
@@ -201,7 +212,7 @@ def extract_json_from_response(response):
         try:
             return json.loads(json_match.group(1))
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse JSON from code block: {e}")
+            print(f"COMPETITOR AGENT: Failed to parse JSON from code block: {e}")
 
     # Try to find JSON object in text
     json_match = re.search(r"\{.*\}", text_content, re.DOTALL)
@@ -209,10 +220,10 @@ def extract_json_from_response(response):
         try:
             return json.loads(json_match.group(0))
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse JSON object: {e}")
+            print(f"COMPETITOR AGENT: Failed to parse JSON object: {e}")
 
     # If all else fails, return structured error
-    logger.warning("Could not extract JSON from response, returning raw text")
+    print("COMPETITOR AGENT: Could not extract JSON from response, returning raw text")
     return {
         "direct_competitors": [],
         "indirect_competitors": [],
