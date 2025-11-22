@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 import boto3
-from anthropic import Anthropic
+from shared.anthropic import Anthropic
 from shared.job_model import JobHandler
 
 logger = logging.getLogger()
