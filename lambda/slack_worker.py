@@ -30,23 +30,24 @@ job_handler = JobHandler(JOBS_TABLE_NAME)
 
 def generate_question(text):
     prompt = f"""
-        **Rol:** Experto en comunicación interna corporativa.
+            **Rol:** Experto en comunicación interna corporativa.
 
-        **Tarea:**
-        Generar un mensaje directo para plataforma de chat (Teams/Slack) basado en los datos del JSON proporcionado.
+            **Tarea:**
+            Generar un mensaje estructurado para plataforma de chat (Teams/Slack) basado en los datos del JSON proporcionado.
 
-        **Instrucciones de Contenido:**
-        1.  Usa `contact.name` para el saludo (Ej: "Hola [Nombre]").
-        2.  Menciona el `context_summary` como el motivo del mensaje.
-        3.  Redacta las preguntas del array `questions` integrándolas en un solo párrafo coherente o punteos muy breves, manteniendo un tono de solicitud de ayuda profesional.
+            **Instrucciones de Contenido:**
+            1.  Usa `contact.name` para el saludo (Ej: "Hola [Nombre]").
+            2.  Menciona el `context_summary` como el motivo del mensaje.
+            3.  **Preguntas:** Si existen elementos en el array `questions`, es OBLIGATORIO formatearlos como una **lista de viñetas (bullet points)** separada del párrafo principal para garantizar claridad visual. No las redactes en un bloque de texto continuo.
 
-        **Reglas de Salida (ESTRICTO):**
-        * Tu respuesta debe ser **ÚNICAMENTE** el texto del mensaje final.
-        * **NO** incluyas introducciones como "Aquí está tu mensaje", "Propuesta:", ni saludos al usuario.
-        * **NO** uses comillas al inicio o final ni bloques de código.
+            **Reglas de Salida (ESTRICTO):**
+            * Tu respuesta debe ser **ÚNICAMENTE** el texto del mensaje final.
+            * **NO** incluyas introducciones como "Aquí está tu mensaje", "Propuesta:", ni saludos al usuario.
+            * **NO** uses comillas al inicio o final ni bloques de código.
+            * Asegura que el mensaje tenga una estructura visual limpia (espaciado entre el contexto y la lista de preguntas).
 
-        **Input JSON:**
-        ${text}
+            **Input JSON:**
+            ${text}
         """
     try:
         # Create a message using the anthropic helper
