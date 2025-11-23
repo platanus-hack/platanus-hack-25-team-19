@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { ArrowUp, Edit3 } from "lucide-react";
+import ProcessStepper from "@/components/ProcessStepper";
+import { useProcessStep } from "@/hooks/useProcessStep";
 
 interface Message {
   role: "user" | "assistant";
@@ -14,6 +16,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function Conversation() {
   const router = useRouter();
+  const currentStep = useProcessStep();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -257,8 +260,13 @@ export default function Conversation() {
 
   return (
     <div className="flex min-h-screen flex-col bg-(--color-background)">
+      {/* Process Stepper */}
+      <div className="w-full max-w-5xl mx-auto pt-6 px-6">
+        <ProcessStepper currentStep={currentStep} />
+      </div>
+      
       {/* Header */}
-      <header className="border-b border-(--color-border) bg-(--color-background) px-6 py-4">
+      <header className="border-b border-(--color-border) bg-(--color-background) px-6 py-4 mt-6">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <button
             onClick={() => router.push("/")}

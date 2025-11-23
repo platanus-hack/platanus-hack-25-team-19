@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { ReactElement } from "react";
+import ProcessStepper from "@/components/ProcessStepper";
+import { useProcessStep } from "@/hooks/useProcessStep";
 
 type JobType = 'slack' | 'data' | 'research' | 'mail' | 'market_research' | 'external_research';
 type JobStatus = 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'pending' | 'in_progress' | 'completed' | 'failed';
@@ -30,6 +32,7 @@ interface Job {
 
 export default function Jobs() {
     const router = useRouter();
+    const currentStep = useProcessStep();
 
     const [jobs, setJobs] = useState<Job[]>([]);
     const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
@@ -221,8 +224,13 @@ export default function Jobs() {
 
     return (
         <div className="flex min-h-screen flex-col bg-(--color-background)">
+            {/* Process Stepper */}
+            <div className="w-full max-w-5xl mx-auto pt-6 px-6">
+                <ProcessStepper currentStep={currentStep} />
+            </div>
+            
             {/* Header */}
-            <header className="border-b border-(--color-border) bg-(--color-background) px-6 py-4">
+            <header className="border-b border-(--color-border) bg-(--color-background) px-6 py-4 mt-6">
                 <div className="mx-auto flex max-w-6xl items-center justify-between">
                     <button
                         onClick={() => router.push('/conversation')}

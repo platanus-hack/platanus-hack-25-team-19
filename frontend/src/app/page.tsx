@@ -4,14 +4,16 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
 import { ArrowUp } from "lucide-react";
 import ProcessStepper from "@/components/ProcessStepper";
+import { useProcessStep } from "@/hooks/useProcessStep";
 
 export default function Home() {
   const [inputValue, setInputValue] = useState("");
   const [currentActionIndex, setCurrentActionIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [text, setText] = useState("");
-
+  
   const router = useRouter();
+  const currentStep = useProcessStep();
 
   const actions = useMemo(
     () => [
@@ -74,7 +76,7 @@ export default function Home() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-(--color-background) px-4">
       {/* Process Stepper */}
       <div className="w-full max-w-5xl mb-16">
-        <ProcessStepper currentStep={0} />
+        <ProcessStepper currentStep={currentStep} />
       </div>
 
       {/* Main Content */}

@@ -3,9 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import ReactMarkdown from 'react-markdown';
+import ProcessStepper from "@/components/ProcessStepper";
+import { useProcessStep } from "@/hooks/useProcessStep";
 
 export default function Summary() {
     const router = useRouter();
+    const currentStep = useProcessStep();
     const [summaryText] = useState(() => {
         // Initialize state from localStorage or use mock data
         if (typeof window === 'undefined') return '';
@@ -130,8 +133,13 @@ Para abordar este problema crítico, se ha diseñado un plan de investigación m
 
     return (
         <div className="flex min-h-screen flex-col bg-(--color-background)">
+            {/* Process Stepper */}
+            <div className="w-full max-w-5xl mx-auto pt-6 px-6">
+                <ProcessStepper currentStep={currentStep} />
+            </div>
+            
             {/* Header */}
-            <header className="border-b border-(--color-border) bg-(--color-background) px-6 py-4">
+            <header className="border-b border-(--color-border) bg-(--color-background) px-6 py-4 mt-6">
                 <div className="mx-auto flex max-w-4xl items-center justify-between">
                     <button
                         onClick={() => router.push('/jobs')}
