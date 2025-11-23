@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
-import { ArrowUp } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import ProcessStepper from "@/components/ProcessStepper";
 
 export default function Home() {
@@ -15,9 +15,9 @@ export default function Home() {
 
   const actions = useMemo(
     () => [
-      { text: "antes de gastar de más", color: "text-(--color-text)" },
-      { text: "prioriza lo que importa", color: "text-(--color-text)" },
-      { text: "no pierdas tiempo", color: "text-(--color-text)" },
+      { text: "gastar de más", color: "text-white" },
+      { text: "priorizar mal", color: "text-white" },
+      { text: "perder tiempo", color: "text-white" },
     ],
     []
   );
@@ -71,52 +71,63 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-(--color-background) px-4">
-      {/* Process Stepper */}
-      <div className="w-full max-w-5xl mb-16">
-        <ProcessStepper currentStep={0} />
-      </div>
 
-      {/* Main Content */}
-      <main className="flex w-full max-w-3xl flex-col items-center text-center">
-        <h1 className="text-emerald-400 min-h-[2.5em] text-4xl font-semibold tracking-tight md:text-6xl lg:text-7xl">
-          GreenLight{" "}
-          <span
-            className={`${actions[currentActionIndex].color} transition-colors duration-300`}
-          >
-            {text}
-            <span className="animate-pulse">|</span>
-          </span>
-        </h1>
-        <p className="mb-12 max-w-xl text-lg text-(--color-text-secondary) md:text-xl">
-          Resolver el problema equivocado sale carísimo: compara, investiga y
-          confirma.
-        </p>
+    <section className="relative min-h-screen overflow-hidden border-b border-(--color-border) bg-(--color-background)">
+      {/* Grid background pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-size-[64px_64px]" />
+      <div className="relative mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8 flex items-center justify-center min-h-screen">
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="mx-auto max-w-2xl mb-24 -mt-28">
+            <ProcessStepper currentStep={0} />
+          </div>
+          {/* Badge */}
+          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 text-sm text-(--color-primary)">
+            <Sparkles className="h-4 w-4" />
+            <span className="font-mono">Tu equipo de consultoría IA</span>
+          </div>
 
-        <div className="w-full max-w-xl">
-          <div className="relative flex items-end rounded-xl border border-(--color-input-border) bg-(--color-input-bg)">
-            <textarea
-              placeholder="¿Qué problema grande buscas resolver?"
-              className={`w-full bg-transparent px-5 py-4 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary) resize-none ${
-                inputValue.trim() ? "pr-14" : ""
-              }`}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={3}
-            />
-            {inputValue.trim() && (
+          {/* Main heading with animation */}
+          <h1 className="mb-6 text-balance font-sans text-5xl font-bold tracking-tight text-(--color-text) sm:text-6xl lg:text-7xl min-h-[2.5em]">
+            <span className="text-emerald-400">GreenLight</span> antes de{" "}
+            <br />
+            <span
+              className={`${actions[currentActionIndex].color} transition-colors duration-300`}
+            >
+              {text}
+              <span className="animate-pulse">|</span>
+            </span>
+          </h1>
+
+          {/* Description */}
+          <p className="mb-10 text-pretty text-lg leading-relaxed text-(--color-text-secondary) sm:text-xl">
+            Utiliza agentes de IA para investigar a fondo, dialogar con stakeholders y validar tus ideas.
+            Obtén un documento completo de investigación en formato listo para accionar.
+          </p>
+
+          {/* Input area */}
+          <div className="w-full max-w-2xl mx-auto mb-6">
+            <div className="relative flex items-end rounded-xl border border-(--color-input-border) bg-(--color-input-bg) shadow-lg">
+              <input
+                placeholder="¿Qué problema buscas resolver?"
+                className={`w-full bg-transparent px-5 py-4 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary) resize-none ${
+                  inputValue.trim() ? "pr-14" : ""
+                }`}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
               <button
-                className="absolute right-2 bottom-2 rounded-full bg-(--color-primary) p-2 text-white transition-all hover:bg-(--color-primary-hover) hover:scale-105 shadow-lg cursor-pointer"
+                className="disabled:cursor-not-allowed disabled:bg-(--color-primary-disabled) absolute right-2 bottom-2 rounded-full bg-(--color-primary) p-2 text-white transition-all hover:bg-(--color-primary-hover) hover:scale-105 shadow-lg cursor-pointer"
                 onClick={handleSubmit}
-                aria-label="Submit"
+                aria-label="Comenzar investigación"
+                disabled={!inputValue.trim()}
               >
-                <ArrowUp size={20} strokeWidth={2.5} />
+                <ArrowRight size={20} strokeWidth={2.5} />
               </button>
-            )}
+            </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </section>
   );
 }
