@@ -1,12 +1,12 @@
 'use client'
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import ReactMarkdown from 'react-markdown';
 import ProcessStepper from "@/components/ProcessStepper";
 import { useProcessStep } from "@/hooks/useProcessStep";
 
-export default function Summary() {
+function SummaryContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const currentStep = useProcessStep();
@@ -91,5 +91,21 @@ export default function Summary() {
                 </button>
             </div>
         </div>
+    );
+}
+
+export default function Summary() {
+    return (
+        <Suspense fallback={
+            <div className="flex min-h-screen items-center justify-center bg-(--color-background)">
+                <div className="flex items-center space-x-2">
+                    <div className="h-3 w-3 animate-bounce rounded-full bg-(--color-primary)" style={{ animationDelay: "0ms" }}></div>
+                    <div className="h-3 w-3 animate-bounce rounded-full bg-(--color-primary)" style={{ animationDelay: "150ms" }}></div>
+                    <div className="h-3 w-3 animate-bounce rounded-full bg-(--color-primary)" style={{ animationDelay: "300ms" }}></div>
+                </div>
+            </div>
+        }>
+            <SummaryContent />
+        </Suspense>
     );
 }

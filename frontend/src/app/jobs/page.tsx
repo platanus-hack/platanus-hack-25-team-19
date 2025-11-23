@@ -1,11 +1,10 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import type { ReactElement } from "react";
 import ProcessStepper from "@/components/ProcessStepper";
 import { useProcessStep } from "@/hooks/useProcessStep";
-import ReactMarkdown from "react-markdown";
 import ResearchResults from "@/components/ResearchResults";
 import ExternalResearchResults from "@/components/ExternalResearchResults";
 
@@ -49,7 +48,7 @@ interface Job {
       };
 }
 
-export default function Jobs() {
+function JobsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentStep = useProcessStep();
@@ -1038,5 +1037,21 @@ export default function Jobs() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Jobs() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-(--color-background)">
+        <div className="flex items-center space-x-2">
+          <div className="h-3 w-3 animate-bounce rounded-full bg-(--color-primary)" style={{ animationDelay: "0ms" }}></div>
+          <div className="h-3 w-3 animate-bounce rounded-full bg-(--color-primary)" style={{ animationDelay: "150ms" }}></div>
+          <div className="h-3 w-3 animate-bounce rounded-full bg-(--color-primary)" style={{ animationDelay: "300ms" }}></div>
+        </div>
+      </div>
+    }>
+      <JobsContent />
+    </Suspense>
   );
 }
