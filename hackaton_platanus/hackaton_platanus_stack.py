@@ -52,6 +52,22 @@ class HackatonPlatanusStack(Stack):
             point_in_time_recovery=True
         )
 
+        slack_conversations_table = dynamodb.Table(
+            self, "SlackConversationsTable",
+            table_name="slack_conversations",
+            partition_key=dynamodb.Attribute(
+                name="slack_channel",
+                type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="target_user_id",
+                type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
+            point_in_time_recovery=True
+        )
+
         # Create SQS Queues
         problem_queue = sqs.Queue(
             self, "ProblemQueue",
@@ -95,6 +111,21 @@ class HackatonPlatanusStack(Stack):
             }
         )
 
+        slack_webhook_lambda = _lambda.Function(
+            self, "SlackWebhookFunction",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="slack_webhook.handler",
+            code=_lambda.Code.from_asset(lambda_code_path),
+            timeout=Duration.seconds(800),
+            memory_size=256,
+            description="Problem Lambda that queues problem job requests",
+            function_name="slack_webhook",
+            environment={
+                "JOBS_TABLE_NAME": jobs_table.table_name,
+                "CONVERSATIONS_TABLE_NAME": slack_conversations_table.table_name,
+            }
+        )
+
         summarize_lambda = _lambda.Function(
             self, "SummarizeFunction",
             runtime=_lambda.Runtime.PYTHON_3_11,
@@ -135,6 +166,8 @@ class HackatonPlatanusStack(Stack):
         problem_queue.grant_send_messages(problem_lambda)
         jobs_table.grant_read_write_data(summarize_lambda)
         jobs_table.grant_write_data(orchestrator_lambda)
+        jobs_table.grant_read_write_data(slack_webhook_lambda)
+        slack_conversations_table.grant_read_write_data(slack_webhook_lambda)
         slack_queue.grant_send_messages(orchestrator_lambda)
         market_research_queue.grant_send_messages(orchestrator_lambda)
         external_research_queue.grant_send_messages(orchestrator_lambda)
@@ -151,7 +184,7 @@ class HackatonPlatanusStack(Stack):
             function_name="slack_worker",
             environment={
                 "JOBS_TABLE_NAME": jobs_table.table_name,
-                "CONVERSATIONS_TABLE_NAME": conversations_table.table_name,
+                "CONVERSATIONS_TABLE_NAME": slack_conversations_table.table_name,
                 "SLACK_QUEUE_URL": slack_queue.queue_url,
                 # These should be set via environment variables or AWS Secrets Manager
                 "SLACK_BOT_TOKEN": os.environ["SLACK_BOT_TOKEN"],
@@ -196,7 +229,7 @@ class HackatonPlatanusStack(Stack):
         jobs_table.grant_read_write_data(external_research_worker)
 
         # Grant conversations table permissions to slack worker
-        conversations_table.grant_read_write_data(slack_worker)
+        slack_conversations_table.grant_read_write_data(slack_worker)
 
         # Grant SQS permissions to slack worker for requeuing
         slack_queue.grant_send_messages(slack_worker)
@@ -317,6 +350,23 @@ class HackatonPlatanusStack(Stack):
         get_jobs_integration = apigateway.LambdaIntegration(
             get_jobs_lambda,
             proxy=True
+        )
+
+        # Add POST method to /slack-webhook endpoint
+        slack_webhook_resource = api.root.add_resource("slack-webhook")
+        slack_webhook_integration = apigateway.LambdaIntegration(
+            slack_webhook_lambda,
+            proxy=True
+        )
+
+        # Add POST method to /slack-webhook endpoint
+        slack_webhook_resource.add_method("POST", slack_webhook_integration)
+
+        # Add CORS support for /slack-webhook
+        slack_webhook_resource.add_cors_preflight(
+            allow_origins=["*"],
+            allow_methods=["POST", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization"]
         )
 
         # Add POST method to /jobs endpoint

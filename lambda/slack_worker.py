@@ -4,6 +4,7 @@ import os
 from shared.job_model import JobHandler
 from shared.slack import SlackHelper
 from shared.anthropic import Anthropic, ConversationMessage
+from shared.conversation_model import ConversationHandler, ConversationModel
 
 import boto3
 
@@ -11,7 +12,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
-dynamodb = boto3.resource('dynamodb')
 sqs = boto3.client('sqs')
 
 ANTHROPIC_API_KEY = os.environ['ANTHROPIC_API_KEY']
@@ -22,11 +22,11 @@ slack_client = SlackHelper(token=os.environ['SLACK_BOT_TOKEN'])
 
 # Get environment variables
 JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
+CONVERSATIONS_TABLE_NAME = os.environ['CONVERSATIONS_TABLE_NAME']
 
 # Get table reference
-jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
-conversations_table = dynamodb.Table(os.environ['CONVERSATIONS_TABLE_NAME'])
 job_handler = JobHandler(JOBS_TABLE_NAME)
+conversation_handler = ConversationHandler(CONVERSATIONS_TABLE_NAME)
 
 def generate_question(text):
     prompt = f"""
@@ -111,17 +111,18 @@ def lambda_handler(event, context):
                     # 1. Update Status in Jobs Table
                     job_handler.mark_in_progress(session_id=session_id, job_id=jobId)
 
-                    # 2. Create Entry in Conversations Table
-                    # This keeps the Jobs table clean of Slack IDs and timestamps
-                    conversations_table.put_item(Item={
-                        'jobId': jobId,
-                        'target_user_id': user_id,
-                        'slack_channel': slack_res['channel'],
-                        'slack_ts': slack_res['ts'],
-                        'extracted_email': target_email,
-                        'extracted_question': question,
-                        'user_response': None # Empty for now
-                    })
+                    conversation = ConversationModel(
+                        slack_channel=slack_res['channel'],
+                        target_user_id=user_id,
+                        session_id=session_id,
+                        job_id=jobId,
+                        slack_ts=slack_res['ts'],
+                        extracted_email=target_email,
+                        extracted_question=question,
+                        user_response=None
+                    )
+
+                    conversation_handler.create(conversation=conversation)
 
                     print(f"Job {jobId} initialized. Conversation stored.")
 
@@ -131,49 +132,9 @@ def lambda_handler(event, context):
                 print(f"User {target_email} not found.")
 
         # ====================================================
-        # STATE 2: IN_PROGRESS -> Transition to FINISHED
-        # ====================================================
-        elif jobStatus == "IN_PROGRESS":
-            # A. Fetch Technical Details from 'JobConversations'
-            # We need the timestamp and channel to poll.
-            conv_response = conversations_table.get_item(Key={'jobId': jobId})
-            
-            if 'Item' not in conv_response:
-                print(f"Error: Job is IN_PROGRESS but no conversation record found.")
-                continue
-
-            conv_item = conv_response['Item']
-            
-            # B. Check for Reply
-            reply_text = check_for_reply(
-                conv_item['slack_channel'], 
-                conv_item['slack_ts'], 
-                conv_item['target_user_id']
-            )
-
-            if reply_text:
-                # C. RESPONSE FOUND
-                
-                # 1. Update Jobs Table (Business Logic)
-                job_handler.mark_completed(session_id=session_id, job_id=jobId, result=reply_text)
-
-                # 2. Update Conversations Table (Data Logic)
-                conversations_table.update_item(
-                    Key={'jobId': jobId},
-                    UpdateExpression="SET user_response = :r",
-                    ExpressionAttributeValues={':r': reply_text}
-                )
-
-                print(f"✅ Job {jobId} Finished. Response saved.")
-            
-            else:
-                # D. No response yet -> Loop
-                print(f"Waiting for reply on Job {jobId}...")
-
-        # ====================================================
         # STATE 3: FINISHED
         # ====================================================
-        elif jobStatus == "FINISHED":
+        else:
             print("Job is already finished.")
 
     return {"statusCode": 200}
