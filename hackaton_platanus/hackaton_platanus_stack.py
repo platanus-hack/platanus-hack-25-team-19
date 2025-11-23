@@ -155,7 +155,7 @@ class HackatonPlatanusStack(Stack):
                 "SLACK_QUEUE_URL": slack_queue.queue_url,
                 # These should be set via environment variables or AWS Secrets Manager
                 "SLACK_BOT_TOKEN": os.environ["SLACK_BOT_TOKEN"],
-                "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
+                "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY_2']
             }
         )
 
@@ -171,6 +171,7 @@ class HackatonPlatanusStack(Stack):
             environment={
                 "JOBS_TABLE_NAME": jobs_table.table_name,
                 "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY'],
+                "ANTHROPIC_API_KEY_2": os.environ['ANTHROPIC_API_KEY_2'],
             }
         )
 

@@ -11,12 +11,14 @@ logger.setLevel(logging.INFO)
 # Get environment variables
 JOBS_TABLE_NAME = os.environ.get("JOBS_TABLE_NAME", "test-table")
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+ANTHROPIC_API_KEY_2 = os.environ["ANTHROPIC_API_KEY_2"]
 
 # Get table reference
 job_handler = JobHandler(JOBS_TABLE_NAME)
 
 # Initialize Anthropic client
 anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
+anthropic_2 = Anthropic(api_key=ANTHROPIC_API_KEY_2)
 
 
 def handler(event, context):
@@ -304,7 +306,7 @@ def run_solutions_analysis(problem_context, obstacles_findings):
     print("SOLUTIONS AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic.send_message(
+    response = anthropic_2.send_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -519,7 +521,7 @@ def run_competitor_analysis(problem_context, obstacles_findings, solutions_findi
     print("COMPETITOR AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic.send_message(
+    response = anthropic_2.send_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -673,7 +675,7 @@ def generate_synthesis(problem_context, obstacles, solutions, legal, competitors
     Enfócate en inteligencia accionable.
 
     Apunta a 800-1200 palabras. Incluye puntos de datos específicos y fuentes \
-    cuando sea relevante."""
+    cuando sea relevante. Debe ser en texto plano, no incluyas JSON, Markdown u otro formato."""
 
     all_findings = f"""
     CONTEXTO DEL PROBLEMA:
@@ -705,7 +707,7 @@ def generate_synthesis(problem_context, obstacles, solutions, legal, competitors
 
     logger.info("Generating synthesis with Claude API...")
 
-    response = anthropic.send_message(
+    response = anthropic_2.send_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,

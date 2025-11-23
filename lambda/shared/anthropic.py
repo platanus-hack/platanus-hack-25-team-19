@@ -49,6 +49,9 @@ class Anthropic():
         payload = {
             'model': 'claude-sonnet-4-5-20250929',
             'max_tokens': 4096 if tools else 1024,
+            "thinking": {
+                "type": "disabled"
+            },
             'messages': [
                 { 'role': msg.role, 'content': msg.content } for msg in messages
             ]
@@ -75,10 +78,11 @@ class Anthropic():
 
                 result = ''
                 for content_block in response_data['content']:
-                    if content_block['type'] != 'text':
-                        continue
+                    if content_block['type'] == 'text':
+                        result += content_block['text']
 
-                    result += content_block['text']
+                    if content_block['type'] == 'tool_use' and content_block['name'] in [tool['name'] for tool in tools or []]:
+                        result = json.dumps(content_block['input'])
 
                 return result
 

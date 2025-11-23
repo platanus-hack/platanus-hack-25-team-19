@@ -140,7 +140,7 @@ def call_anthropic_with_jobs(system: str, user_prompt: str) -> Dict[str, Any]:
 
         print("orchestration result:", result)
 
-        return result
+        return json.loads(result)
 
     except Exception as e:
         logger.error(f"Error calling Anthropic API: {e}")
