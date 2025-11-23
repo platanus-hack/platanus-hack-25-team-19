@@ -145,6 +145,8 @@ def generate_search_strategy(expert_profile: str, questions: List[str], context_
         "target_roles": ["role1", "role2", ...],
         "target_industries": ["industry1", "industry2", ...]
     }}
+
+    Siempre responde en español.
     """
 
     try:

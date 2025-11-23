@@ -5,7 +5,8 @@ import { useState, useEffect } from "react";
 import type { ReactElement } from "react";
 import ProcessStepper from "@/components/ProcessStepper";
 import { useProcessStep } from "@/hooks/useProcessStep";
-import ResearchResults from "@/components/ResearchResults";
+import ReactMarkdown from "react-markdown";
+
 
 type JobType =
   | "slack"
@@ -289,23 +290,21 @@ export default function Jobs() {
     setIsGeneratingSummary(true);
 
     try {
-      // const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/summary`, {
-      //     method: 'POST',
-      //     headers: {
-      //         'Content-Type': 'application/json',
-      //     },
-      //     body: JSON.stringify({ session_id: sessionId }),
-      // });
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/summarize`, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ session_id: sessionId }),
+      });
 
-      // if (response.ok) {
-      //     const data = await response.json();
-      //     localStorage.setItem('summary-text', data.summary || data.text || '');
-      //     router.push('/summary');
-      // } else {
-      //     console.error('Failed to generate summary');
-      // }
-
-      router.push("/summary");
+      if (response.ok) {
+          const data = await response.json();
+          localStorage.setItem('summary-text', data.message || data.text || '');
+          router.push('/summary');
+      } else {
+          console.error('Failed to generate summary');
+      }
     } catch (error) {
       console.error("Error generating summary:", error);
     } finally {
@@ -908,13 +907,54 @@ export default function Jobs() {
                               <div className="mt-3 pt-3 border-t border-(--color-border)">
                                 {/* Show ResearchResults component for research job type */}
                                 {jobType === "research" ? (
-                                  <ResearchResults
-                                    result={
+                                  <></>
+                                ) : jobType === "external_research" ? (
+                                  /* Deep Research Results with Markdown */
+                                  (() => {
+                                    // Parse result if it's a string
+                                    const parsedResult =
                                       typeof job.result === "string"
-                                        ? job.result
-                                        : JSON.stringify(job.result)
-                                    }
-                                  />
+                                        ? JSON.parse(job.result)
+                                        : job.result;
+
+                                    // Extract synthesis (main content with markdown)
+                                    const resultContent =
+                                      parsedResult?.synthesis ||
+                                      parsedResult?.content ||
+                                      "";
+
+                                    return (
+                                      <div className="space-y-4">
+                                        {/* Synthesis - Markdown Content */}
+                                        <div>
+                                          <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-3">
+                                            Análisis Estratégico
+                                          </p>
+                                          <div className="bg-(--color-background) rounded-lg p-4 border border-(--color-border)">
+                                            <div
+                                              className="prose prose-invert prose-sm max-w-none
+                                                prose-headings:text-(--color-text)
+                                                prose-h1:text-2xl prose-h1:font-bold prose-h1:mb-4 prose-h1:mt-0
+                                                prose-h2:text-xl prose-h2:font-semibold prose-h2:mt-6 prose-h2:mb-3
+                                                prose-h3:text-lg prose-h3:font-semibold prose-h3:mt-4 prose-h3:mb-2
+                                                prose-p:text-(--color-text) prose-p:leading-relaxed prose-p:mb-3
+                                                prose-strong:text-(--color-text) prose-strong:font-semibold
+                                                prose-ul:text-(--color-text) prose-ul:my-3 prose-ul:list-disc prose-ul:pl-5
+                                                prose-ol:text-(--color-text) prose-ol:my-3 prose-ol:list-decimal prose-ol:pl-5
+                                                prose-li:text-(--color-text) prose-li:my-1 prose-li:leading-relaxed
+                                                prose-code:text-(--color-primary) prose-code:bg-(--color-input-bg) prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                                                prose-pre:bg-(--color-input-bg) prose-pre:border prose-pre:border-(--color-border) prose-pre:rounded prose-pre:p-3
+                                                prose-blockquote:border-l-4 prose-blockquote:border-(--color-primary) prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-(--color-text-secondary)"
+                                            >
+                                              <ReactMarkdown>
+                                                {resultContent}
+                                              </ReactMarkdown>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()
                                 ) : (
                                   <>
                                     <p className="text-[10px] font-medium text-(--color-text-secondary) uppercase tracking-wider mb-2">
