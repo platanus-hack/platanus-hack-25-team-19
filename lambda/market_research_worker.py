@@ -2,29 +2,17 @@ import json
 import logging
 import os
 from datetime import datetime
-
-import boto3
 from shared.anthropic import Anthropic, ConversationMessage
 from shared.job_model import JobHandler
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize AWS clients
-dynamodb = boto3.resource("dynamodb")
-
 # Get environment variables
 JOBS_TABLE_NAME = os.environ.get("JOBS_TABLE_NAME", "test-table")
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 
-OBSTACLES_AGENT_NAME = os.environ["OBSTACLES_AGENT_NAME"]
-SOLUTIONS_AGENT_NAME = os.environ["SOLUTIONS_AGENT_NAME"]
-LEGAL_AGENT_NAME = os.environ["LEGAL_AGENT_NAME"]
-COMPETITOR_AGENT_NAME = os.environ["COMPETITOR_AGENT_NAME"]
-MARKET_AGENT_NAME = os.environ["MARKET_AGENT_NAME"]
-
 # Get table reference
-jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
 job_handler = JobHandler(JOBS_TABLE_NAME)
 
 # Initialize Anthropic client
@@ -60,36 +48,30 @@ def handler(event, context):
 
             job_handler.mark_in_progress(session_id=session_id, job_id=job_id)
             
-            # Execute agents sequentially  
-            try:
-                final_result = _execute_agents(job.instructions, session_id, job_id)
+            final_result = _execute_agents(job.instructions, session_id, job_id)
 
-                # Mark as completed
-                job_handler.mark_completed(
-                    session_id=session_id,
-                    job_id=job_id,
-                    result=json.dumps(final_result)
-                )
+            # Mark as completed
+            job_handler.mark_completed(
+                session_id=session_id,
+                job_id=job_id,
+                result=json.dumps(final_result)
+            )
 
-                logger.info(
-                    f"Market research orchestration completed successfully for job {job_id}"
-                )
+            logger.info(
+                f"Market research orchestration completed successfully for job {job_id}"
+            )
 
-            except Exception as agent_error:
-                logger.error(
-                    f"Agent execution failed for job {job_id}: {str(agent_error)}", exc_info=True
-                )
+        except Exception as agent_error:
+            logger.error(
+                f"Agent execution failed for job {job_id}: {str(agent_error)}", exc_info=True
+            )
 
-                job_handler.mark_failed(
-                    session_id=session_id,
-                    job_id=job_id,
-                    result=str(agent_error)
-                )
+            job_handler.mark_failed(
+                session_id=session_id,
+                job_id=job_id,
+                result=str(agent_error)
+            )
 
-                raise
-
-        except Exception as e:
-            logger.error(f"Error in orchestrator: {str(e)}", exc_info=True)
             raise
 
     return {

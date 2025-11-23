@@ -139,89 +139,6 @@ class HackatonPlatanusStack(Stack):
         market_research_queue.grant_send_messages(orchestrator_lambda)
         external_research_queue.grant_send_messages(orchestrator_lambda)
 
-        # Create 5 agent Lambda functions for market research orchestration
-        obstacles_agent = _lambda.Function(
-            self, "ObstaclesAgent",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="obstacles_agent.handler",
-            code=_lambda.Code.from_asset(lambda_code_path),
-            timeout=Duration.seconds(900),  # 15 minutes
-            memory_size=1024,  # 1GB
-            description="Analyzes obstacles and challenges",
-            function_name="obstacles_agent",
-            environment={
-                "JOBS_TABLE_NAME": jobs_table.table_name,
-                "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
-            }
-        )
-
-        solutions_agent = _lambda.Function(
-            self, "SolutionsAgent",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="solutions_agent.handler",
-            code=_lambda.Code.from_asset(lambda_code_path),
-            timeout=Duration.seconds(900),
-            memory_size=1024,
-            description="Researches existing solutions",
-            function_name="solutions_agent",
-            environment={
-                "JOBS_TABLE_NAME": jobs_table.table_name,
-                "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
-            }
-        )
-
-        legal_agent = _lambda.Function(
-            self, "LegalAgent",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="legal_agent.handler",
-            code=_lambda.Code.from_asset(lambda_code_path),
-            timeout=Duration.seconds(900),
-            memory_size=1024,
-            description="Analyzes legal and regulatory requirements",
-            function_name="legal_agent",
-            environment={
-                "JOBS_TABLE_NAME": jobs_table.table_name,
-                "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
-            }
-        )
-
-        competitor_agent = _lambda.Function(
-            self, "CompetitorAgent",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="competitor_agent.handler",
-            code=_lambda.Code.from_asset(lambda_code_path),
-            timeout=Duration.seconds(900),
-            memory_size=1024,
-            description="Analyzes competitors and market structure",
-            function_name="competitor_agent",
-            environment={
-                "JOBS_TABLE_NAME": jobs_table.table_name,
-                "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
-            }
-        )
-
-        market_agent = _lambda.Function(
-            self, "MarketAgent",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="market_agent.handler",
-            code=_lambda.Code.from_asset(lambda_code_path),
-            timeout=Duration.seconds(900),
-            memory_size=1024,
-            description="Analyzes market size and trends",
-            function_name="market_agent",
-            environment={
-                "JOBS_TABLE_NAME": jobs_table.table_name,
-                "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY']
-            }
-        )
-
-        # Grant DynamoDB permissions to agent lambdas
-        jobs_table.grant_read_write_data(obstacles_agent)
-        jobs_table.grant_read_write_data(solutions_agent)
-        jobs_table.grant_read_write_data(legal_agent)
-        jobs_table.grant_read_write_data(competitor_agent)
-        jobs_table.grant_read_write_data(market_agent)
-
         # Create worker Lambda functions
         slack_worker = _lambda.Function(
             self, "SlackWorker",
@@ -254,11 +171,6 @@ class HackatonPlatanusStack(Stack):
             environment={
                 "JOBS_TABLE_NAME": jobs_table.table_name,
                 "ANTHROPIC_API_KEY": os.environ['ANTHROPIC_API_KEY'],
-                "OBSTACLES_AGENT_NAME": obstacles_agent.function_name,
-                "SOLUTIONS_AGENT_NAME": solutions_agent.function_name,
-                "LEGAL_AGENT_NAME": legal_agent.function_name,
-                "COMPETITOR_AGENT_NAME": competitor_agent.function_name,
-                "MARKET_AGENT_NAME": market_agent.function_name
             }
         )
 
@@ -287,13 +199,6 @@ class HackatonPlatanusStack(Stack):
 
         # Grant SQS permissions to slack worker for requeuing
         slack_queue.grant_send_messages(slack_worker)
-
-        # Grant market_research_worker permission to invoke agent lambdas
-        obstacles_agent.grant_invoke(market_research_worker)
-        solutions_agent.grant_invoke(market_research_worker)
-        legal_agent.grant_invoke(market_research_worker)
-        competitor_agent.grant_invoke(market_research_worker)
-        market_agent.grant_invoke(market_research_worker)
 
         # Connect queues to worker lambdas
         slack_worker.add_event_source(
