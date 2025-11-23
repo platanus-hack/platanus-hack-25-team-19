@@ -90,7 +90,7 @@ export default function Home() {
           <div className="relative flex items-end rounded-xl border border-(--color-input-border) bg-(--color-input-bg)">
             <textarea
               placeholder="¿Qué problema grande buscas resolver?"
-              className={`w-full bg-transparent px-5 py-4 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary) resize-none min-h-[80px] ${
+              className={`w-full bg-transparent px-5 py-4 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary) resize-none ${
                 inputValue.trim() ? "pr-14" : ""
               }`}
               value={inputValue}
