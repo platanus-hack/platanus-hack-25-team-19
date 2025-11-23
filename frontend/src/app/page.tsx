@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
 import { ArrowUp } from "lucide-react";
+import ProcessStepper from "@/components/ProcessStepper";
 
 export default function Home() {
   const [inputValue, setInputValue] = useState("");
@@ -70,7 +71,13 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-(--color-background) px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-(--color-background) px-4">
+      {/* Process Stepper */}
+      <div className="w-full max-w-5xl mb-16">
+        <ProcessStepper currentStep={0} />
+      </div>
+
+      {/* Main Content */}
       <main className="flex w-full max-w-3xl flex-col items-center text-center">
         <h1 className="text-emerald-400 min-h-[2.5em] text-4xl font-semibold tracking-tight md:text-6xl lg:text-7xl">
           GreenLight{" "}
