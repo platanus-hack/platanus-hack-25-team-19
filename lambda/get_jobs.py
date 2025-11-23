@@ -24,7 +24,6 @@ JOBS_TABLE_NAME = os.environ["JOBS_TABLE_NAME"]
 # --- SQS MAPPING ---
 SQS_MAPPING = {
     "slack": SLACK_QUEUE_URL,  # Internal Data Audit requires internal contact (Slack)
-    "research": MARKET_RESEARCH_QUEUE_URL,  # External Context requires Market Research
     "external_research": EXTERNAL_RESEARCH_QUEUE_URL,  # External Experts requires External Research
 }
 

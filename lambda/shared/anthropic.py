@@ -68,18 +68,19 @@ class Anthropic():
 
         try:
             with urllib.request.urlopen(request) as response:
-                response_data = json.loads(response.read().decode('utf-8'))
+                response_text = response.read().decode('utf-8')
+                response_data = json.loads(response_text)
 
-                if tools:
-                    # Parse tool use response
-                    for content_block in response_data['content']:
-                        if content_block['type'] == 'tool_use' and content_block['name'] == 'project_quantification_engine_output':
-                            return content_block['input']
+                logger.info(f'Anthropic API response: {response_text}')
 
-                    raise Exception("Model did not return the required 'project_quantification_engine_output' via tool execution.")
-                else:
-                    # Return text response
-                    return response_data['content'][0]['text']
+                result = ''
+                for content_block in response_data['content']:
+                    if content_block['type'] != 'text':
+                        continue
+
+                    result += content_block['text']
+
+                return result
 
         except urllib.error.HTTPError as e:
             error_body = e.read().decode('utf-8')

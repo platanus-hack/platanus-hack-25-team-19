@@ -4,42 +4,28 @@ import os
 from datetime import datetime
 
 import boto3
-from shared.anthropic import Anthropic
+from shared.anthropic import Anthropic, ConversationMessage
 from shared.job_model import JobHandler
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Check if we're in test mode (local testing without AWS)
-TEST_MODE = os.environ.get("TEST_MODE", "false").lower() == "true"
-
-if TEST_MODE:
-    logger.info("Running in TEST_MODE - using direct handler calls")
-    # Import agent handlers for direct calling
-    from obstacles_agent import handler as obstacles_handler
-    from solutions_agent import handler as solutions_handler
-    from legal_agent import handler as legal_handler
-    from competitor_agent import handler as competitor_handler
-    from market_agent import handler as market_handler
-else:
-    # Initialize AWS clients
-    dynamodb = boto3.resource("dynamodb")
-    lambda_client = boto3.client("lambda")
+# Initialize AWS clients
+dynamodb = boto3.resource("dynamodb")
 
 # Get environment variables
 JOBS_TABLE_NAME = os.environ.get("JOBS_TABLE_NAME", "test-table")
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
 
-if not TEST_MODE:
-    OBSTACLES_AGENT_NAME = os.environ["OBSTACLES_AGENT_NAME"]
-    SOLUTIONS_AGENT_NAME = os.environ["SOLUTIONS_AGENT_NAME"]
-    LEGAL_AGENT_NAME = os.environ["LEGAL_AGENT_NAME"]
-    COMPETITOR_AGENT_NAME = os.environ["COMPETITOR_AGENT_NAME"]
-    MARKET_AGENT_NAME = os.environ["MARKET_AGENT_NAME"]
-    
-    # Get table reference
-    jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
-    job_handler = JobHandler(JOBS_TABLE_NAME)
+OBSTACLES_AGENT_NAME = os.environ["OBSTACLES_AGENT_NAME"]
+SOLUTIONS_AGENT_NAME = os.environ["SOLUTIONS_AGENT_NAME"]
+LEGAL_AGENT_NAME = os.environ["LEGAL_AGENT_NAME"]
+COMPETITOR_AGENT_NAME = os.environ["COMPETITOR_AGENT_NAME"]
+MARKET_AGENT_NAME = os.environ["MARKET_AGENT_NAME"]
+
+# Get table reference
+jobs_table = dynamodb.Table(JOBS_TABLE_NAME)
+job_handler = JobHandler(JOBS_TABLE_NAME)
 
 # Initialize Anthropic client
 anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -50,43 +36,8 @@ def handler(event, context):
     Market Research Orchestrator: Coordinates 5 research agents sequentially.
 
     Flow: Obstacles → Solutions → Legal → Competitor → Market → Synthesis
-    
-    In TEST_MODE: Pass instructions directly without DynamoDB lookup
     """
     logger.info(f"Market Research Orchestrator received event: {json.dumps(event)}")
-
-    # In TEST_MODE, expect direct instructions
-    if TEST_MODE:
-        logger.info("TEST_MODE: Processing instructions directly")
-        try:
-            instructions = event.get("instructions", "")
-            if not instructions:
-                raise Exception("TEST_MODE requires 'instructions' in event")
-            
-            session_id = "test-session"
-            job_id = "test-job"
-            
-            logger.info(f"TEST_MODE: Processing instructions: {instructions[:100]}...")
-            
-            # Skip DynamoDB operations in test mode
-            logger.info("TEST_MODE: Skipping DynamoDB mark_in_progress")
-            
-            # Execute agents
-            result = _execute_agents(instructions, session_id, job_id)
-            
-            logger.info("TEST_MODE: Skipping DynamoDB mark_completed")
-            
-            return {
-                "statusCode": 200,
-                "body": json.dumps({
-                    "message": "Market research completed (TEST_MODE)",
-                    "result": result
-                })
-            }
-            
-        except Exception as e:
-            logger.error(f"TEST_MODE error: {str(e)}", exc_info=True)
-            raise
     
     # Normal SQS processing with DynamoDB
     for record in event["Records"]:
@@ -105,7 +56,7 @@ def handler(event, context):
                 logger.warning(f"Job {job_id} in session {session_id} is not in CREATED status. Current status: {job.status}. Skipping.")
                 continue
 
-            logger.info(f"Starting market research orchestration for job {job_id}")
+            logger.info(f"Starting market research orchestration for job {job_id} with status {job.status}")
 
             job_handler.mark_in_progress(session_id=session_id, job_id=job_id)
             
@@ -151,93 +102,44 @@ def _execute_agents(instructions, session_id, job_id):
     """
     Execute all 5 agents sequentially and return the final result.
     """
-    # Determine function names based on TEST_MODE
-    if TEST_MODE:
-        obstacles_name = "obstacles"
-        solutions_name = "solutions"
-        legal_name = "legal"
-        competitor_name = "competitor"
-        market_name = "market"
-    else:
-        obstacles_name = OBSTACLES_AGENT_NAME
-        solutions_name = SOLUTIONS_AGENT_NAME
-        legal_name = LEGAL_AGENT_NAME
-        competitor_name = COMPETITOR_AGENT_NAME
-        market_name = MARKET_AGENT_NAME
-    
     # Agent 1: Obstacles
     logger.info(f"Invoking Obstacles Agent for job {job_id}")
-    obstacles_response = invoke_agent(
-        obstacles_name,
-        {
-            'session_id': session_id,
-            'job_id': job_id,
-            'instructions': instructions,
-        }
-    )
-    obstacles_findings = extract_findings(obstacles_response)
+    obstacles_findings = run_obstacles_analysis(instructions)
     logger.info(f"Obstacles Agent completed for job {job_id}")
 
     # Agent 2: Solutions
     logger.info(f"Invoking Solutions Agent for job {job_id}")
-    solutions_response = invoke_agent(
-        solutions_name,
-        {
-            'session_id': session_id,
-            'job_id': job_id,
-            'instructions': instructions,
-            "obstacles_findings": obstacles_findings,
-        },
-    )
-    solutions_findings = extract_findings(solutions_response)
+    solutions_findings = run_solutions_analysis(instructions, obstacles_findings)
     logger.info(f"Solutions Agent completed for job {job_id}")
 
     # Agent 3: Legal
     logger.info(f"Invoking Legal Agent for job {job_id}")
-    legal_response = invoke_agent(
-        legal_name,
-        {
-            'session_id': session_id,
-            'job_id': job_id,
-            'instructions': instructions,
-            "obstacles_findings": obstacles_findings,
-            "solutions_findings": solutions_findings,
-        },
+    legal_findings = run_legal_analysis(
+        instructions,
+        obstacles_findings,
+        solutions_findings,
     )
-    legal_findings = extract_findings(legal_response)
     logger.info(f"Legal Agent completed for job {job_id}")
 
     # Agent 4: Competitor
     logger.info(f"Invoking Competitor Agent for job {job_id}")
-    competitor_response = invoke_agent(
-        competitor_name,
-        {
-            'session_id': session_id,
-            'job_id': job_id,
-            'instructions': instructions,
-            "obstacles_findings": obstacles_findings,
-            "solutions_findings": solutions_findings,
-            "legal_findings": legal_findings,
-        },
+    competitor_findings = run_competitor_analysis(
+        instructions,
+        obstacles_findings,
+        solutions_findings,
+        legal_findings,
     )
-    competitor_findings = extract_findings(competitor_response)
     logger.info(f"Competitor Agent completed for job {job_id}")
 
     # Agent 5: Market
     logger.info(f"Invoking Market Agent for job {job_id}")
-    market_response = invoke_agent(
-        market_name,
-        {
-            'session_id': session_id,
-            'job_id': job_id,
-            'instructions': instructions,
-            "obstacles_findings": obstacles_findings,
-            "solutions_findings": solutions_findings,
-            "legal_findings": legal_findings,
-            "competitor_findings": competitor_findings,
-        },
+    market_findings = run_market_analysis(
+        instructions,
+        obstacles_findings,
+        solutions_findings,
+        legal_findings,
+        competitor_findings,
     )
-    market_findings = extract_findings(market_response)
     logger.info(f"Market Agent completed for job {job_id}")
 
     # Synthesis: Generate executive summary
@@ -268,147 +170,566 @@ def _execute_agents(instructions, session_id, job_id):
     return final_result
 
 
-def invoke_agent(function_name, payload):
+def run_obstacles_analysis(problem_context):
     """
-    Invoke an agent Lambda function synchronously.
-    In TEST_MODE, calls the handler directly instead of via Lambda.
+    Analyze obstacles using Claude with Anthropic's built-in web search.
+    The web search is executed server-side by Anthropic.
     """
-    if TEST_MODE:
-        # Direct handler call for testing
-        logger.info(f"TEST_MODE: Calling handler directly for {function_name}")
-        
-        # Map function names to handlers
-        handler_map = {
-            "obstacles": obstacles_handler,
-            "solutions": solutions_handler,
-            "legal": legal_handler,
-            "competitor": competitor_handler,
-            "market": market_handler,
+    system_prompt = """Eres un analista experto identificando obstáculos y \
+    desafíos para nuevas ideas de negocio o productos.
+
+    Tu rol es realizar una investigación exhaustiva e identificar:
+    1. Obstáculos técnicos - limitaciones tecnológicas, desafíos de \
+    implementación, problemas de escalabilidad
+    2. Obstáculos de mercado - madurez del mercado, problemas de timing, \
+    barreras de adopción por clientes
+    3. Obstáculos regulatorios - requisitos de cumplimiento, restricciones \
+    legales, necesidades de licencias
+    4. Obstáculos de usuario - desafíos de comportamiento de usuario, \
+    fricción en adopción, necesidades de educación
+    5. Obstáculos financieros - barreras de costo, desafíos de financiamiento, \
+    dificultades de pricing
+
+    Tienes acceso a la herramienta web_search para encontrar ejemplos reales, \
+    datos y evidencia.
+
+    Para cada categoría de obstáculo, proporciona:
+    - Obstáculos específicos y concretos (no genéricos)
+    - Evaluación de severidad (crítica, alta, media, baja)
+    - Razonamiento basado en ejemplos reales y datos de búsquedas web
+
+    Cuando hayas reunido suficiente información, entrega tus hallazgos como un \
+    objeto JSON con esta estructura:
+    {
+    "technical": ["obstáculo 1", "obstáculo 2", ...],
+    "market": ["obstáculo 1", "obstáculo 2", ...],
+    "regulatory": ["obstáculo 1", "obstáculo 2", ...],
+    "user": ["obstáculo 1", "obstáculo 2", ...],
+    "financial": ["obstáculo 1", "obstáculo 2", ...],
+    "critical_insights": ["insight clave 1", "insight clave 2", ...],
+    "sources": ["url 1", "url 2", ...]
+    }"""
+
+    user_prompt = f"""CONTEXTO DEL PROBLEMA:
+    {problem_context}
+
+    Por favor analiza los obstáculos y desafíos para este problema/solución. \
+    Usa web_search para encontrar:
+    - Soluciones similares que han enfrentado desafíos
+    - Panorama regulatorio y requisitos de cumplimiento
+    - Condiciones de mercado y barreras de adopción
+    - Preocupaciones de viabilidad técnica
+    - Desafíos financieros y de costos
+
+    Proporciona un análisis exhaustivo basado en evidencia con fuentes."""
+
+    # Use Anthropic's built-in server-side web search
+    # Docs: https://platform.claude.com/docs/en/agents-and-tools/
+    #       tool-use/web-search-tool
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 1  # Limit to 5 searches ($0.05 cost)
         }
-        
-        # Determine which handler to use based on function_name
-        agent_name = None
-        for key in handler_map.keys():
-            if key in function_name.lower():
-                agent_name = key
-                break
-        
-        if agent_name is None:
-            raise Exception(f"Unknown agent in TEST_MODE: {function_name}")
-        
-        handler = handler_map[agent_name]
-        
-        # Call handler directly (no context needed for testing)
-        response_payload = handler(payload, None)
-        
-        logger.info(f"Handler {agent_name} completed successfully")
-        return response_payload
-    else:
-        # Normal Lambda invocation
-        logger.info(f"Invoking Lambda function: {function_name}")
+    ]
 
-        response = lambda_client.invoke(
-            FunctionName=function_name,
-            InvocationType="RequestResponse",  # Synchronous
-            Payload=json.dumps(payload),
-        )
+    print("=" * 80)
+    print("Calling Claude API with built-in web search...")
+    print("=" * 80)
 
-        # Parse response
-        response_payload = json.loads(response["Payload"].read())
+    response = anthropic.send_message(
+        messages=[ConversationMessage(
+            role="user",
+            content=user_prompt,
+            timestamp=datetime.utcnow().isoformat()
+        )],
+        system=system_prompt,
+        # tools=tools
+    )
 
-        if response["StatusCode"] != 200:
-            raise Exception(f"Agent {function_name} returned status {response['StatusCode']}")
+    return response
 
-        if "FunctionError" in response:
-            error_msg = response_payload.get("errorMessage", "Unknown error")
-            raise Exception(f"Agent {function_name} failed: {error_msg}")
-
-        logger.info(f"Lambda function {function_name} completed successfully")
-        return response_payload
-
-
-def extract_findings(agent_response):
+def run_solutions_analysis(problem_context, obstacles_findings):
     """
-    Extract findings from agent Lambda response.
+    Analyze existing solutions using Claude with web search tools.
     """
-    try:
-        body = agent_response.get("body")
-        if isinstance(body, str):
-            body = json.loads(body)
+    system_prompt = """Eres un analista experto investigando soluciones \
+    existentes y workarounds para problemas.
 
-        return body.get("findings", {})
-    except Exception as e:
-        logger.warning(f"Could not extract findings from response: {e}")
-        return {}
+    Tu rol es realizar una investigación exhaustiva e identificar:
+    1. Soluciones manuales - cómo las personas resuelven este problema \
+    manualmente hoy
+    2. Soluciones digitales - software/apps/plataformas existentes que abordan esto
+    3. Workarounds - formas creativas en que las personas evitan el problema
+    4. Brechas - lo que falta en las soluciones actuales que crea oportunidades
 
+    Para cada categoría de solución, proporciona:
+    - Ejemplos específicos con nombres/detalles
+    - Qué tan bien resuelven el problema (completamente, parcialmente, \
+    deficientemente)
+    - Qué les falta o están haciendo mal
+    - Fuentes y URLs para verificación
+
+    Usa web_search y web_fetch para encontrar:
+    - Productos y servicios existentes
+    - Foros de usuarios y discusiones sobre soluciones
+    - Reseñas y comparaciones de productos
+    - Enfoques alternativos que la gente está usando
+
+    Entrega tus hallazgos como un objeto JSON con esta estructura:
+    {
+    "manual_solutions": [
+        {"name": "...", "description": "...", "effectiveness": "...", "limitations": "..."}
+    ],
+    "digital_solutions": [
+        {"name": "...", "url": "...", "description": "...", "strengths": "...", "weaknesses": "..."}
+    ],
+    "workarounds": ["workaround 1", "workaround 2", ...],
+    "gaps": ["brecha 1", "brecha 2", ...],
+    "sources": ["url 1", "url 2", ...]
+    }"""
+
+    obstacles_context = f"""
+    HALLAZGOS PREVIOS - OBSTÁCULOS:
+    {json.dumps(obstacles_findings, indent=2)}
+    """
+
+    user_prompt = f"""CONTEXTO DEL PROBLEMA:
+    {problem_context}
+
+    {obstacles_context}
+
+    Dados los obstáculos identificados, por favor investiga las soluciones y \
+    workarounds existentes. Usa búsqueda web para encontrar:
+    - Productos/servicios actuales que abordan este problema
+    - Cómo las personas resuelven esto manualmente hoy
+    - Discusiones en foros sobre soluciones y workarounds
+    - Brechas y limitaciones en los enfoques existentes
+
+    Enfócate en encontrar ejemplos concretos del mundo real con fuentes."""
+
+    # Use Anthropic's built-in server-side web search
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 1
+        }
+    ]
+
+    print("=" * 80)
+    print("SOLUTIONS AGENT: Calling Claude API with built-in web search...")
+    print("=" * 80)
+
+    response = anthropic.send_message(
+        messages=[ConversationMessage(
+            role="user",
+            content=user_prompt,
+            timestamp=datetime.utcnow().isoformat()
+        )],
+        system=system_prompt,
+        # tools=tools
+    )
+
+    return response
+
+def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
+    """
+    Analyze legal and regulatory requirements using Claude with web search.
+    """
+    system_prompt = """Eres un analista experto legal y regulatorio \
+    especializado en requisitos de cumplimiento para nuevos negocios y productos.
+
+    Tu rol es investigar e identificar:
+    1. Regulaciones específicas de la industria - leyes específicas del sector \
+    y requisitos de cumplimiento
+    2. Protección de datos - GDPR, CCPA, leyes de privacidad de datos
+    3. Regulaciones financieras - procesamiento de pagos, transmisión de dinero, \
+    leyes de valores
+    4. Variaciones regionales - cómo las regulaciones difieren por país/estado
+    5. Requisitos de licencias y certificación
+
+    Para cada categoría regulatoria, proporciona:
+    - Regulaciones y leyes específicas (con nombres/códigos oficiales)
+    - Jurisdicciones donde aplican
+    - Requisitos y pasos de cumplimiento
+    - Penalidades potenciales por incumplimiento
+    - Línea de tiempo y complejidad para el cumplimiento
+
+    Usa web_search para encontrar:
+    - Regulaciones actuales y cambios recientes
+    - Requisitos de cumplimiento específicos de la industria
+    - Organismos y autoridades regulatorias
+    - Ejemplos reales de problemas de cumplimiento de productos similares
+
+    Entrega tus hallazgos como un objeto JSON con esta estructura:
+    {
+    "industry_regulations": [
+        {"regulation": "...", "jurisdiction": "...", "requirements": "...", "complexity": "high|medium|low"}
+    ],
+    "data_protection": [
+        {"law": "...", "jurisdiction": "...", "key_requirements": "...", "penalties": "..."}
+    ],
+    "financial_regs": [
+        {"regulation": "...", "applies_if": "...", "requirements": "..."}
+    ],
+    "regional_variations": [
+        {"region": "...", "specific_requirements": "...", "difficulty": "..."}
+    ],
+    "sources": ["url 1", "url 2", ...]
+    }"""
+
+    previous_context = f"""
+    HALLAZGOS PREVIOS - OBSTÁCULOS:
+    {json.dumps(obstacles_findings, indent=2)}
+
+    HALLAZGOS PREVIOS - SOLUCIONES:
+    {json.dumps(solutions_findings, indent=2)}
+    """
+
+    user_prompt = f"""CONTEXTO DEL PROBLEMA:
+    {problem_context}
+
+    {previous_context}
+
+    Dado el problema y la investigación previa, por favor analiza el panorama \
+    legal y regulatorio. Usa búsqueda web para encontrar:
+    - Regulaciones relevantes de la industria
+    - Requisitos de protección de datos y privacidad
+    - Regulaciones financieras/de pago (si aplica)
+    - Necesidades de licencias o certificación
+    - Diferencias regionales en regulaciones
+
+    Proporciona información específica y accionable con fuentes."""
+
+    # Use Anthropic's built-in server-side web search
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 1
+        }
+    ]
+
+    print("=" * 80)
+    print("LEGAL AGENT: Calling Claude API with built-in web search...")
+    print("=" * 80)
+
+    response = anthropic.send_message(
+        messages=[ConversationMessage(
+            role="user",
+            content=user_prompt,
+            timestamp=datetime.utcnow().isoformat()
+        )],
+        system=system_prompt,
+        # tools=tools
+    )
+
+    return response
+
+def run_competitor_analysis(problem_context, obstacles_findings, solutions_findings, legal_findings):
+    """
+    Analyze competitive landscape using Claude with web search.
+    """
+    system_prompt = """Eres un analista experto en inteligencia competitiva \
+    especializado en análisis de mercado.
+
+    Tu rol es investigar e identificar:
+    1. Competidores directos - empresas/productos resolviendo exactamente el \
+    mismo problema
+    2. Competidores indirectos - soluciones alternativas o productos sustitutos
+    3. Estructura de mercado - ¿es monopolístico, oligopolístico, fragmentado o \
+    emergente?
+    4. Barreras de entrada - ¿qué dificulta que nuevos entrantes compitan?
+    5. Oportunidades de espacio blanco - segmentos desatendidos o brechas en \
+    el mercado
+
+    Para cada categoría de competidor, proporciona:
+    - Nombres de empresa/producto con URLs
+    - Su enfoque y propuesta de valor
+    - Fortalezas y debilidades
+    - Posición en el mercado (líder, retador, nicho)
+    - Financiamiento/ingresos (si está disponible)
+    - Desarrollos o noticias recientes
+
+    Usa web_search y web_fetch para encontrar:
+    - Jugadores actuales en el mercado
+    - Anuncios recientes de financiamiento
+    - Lanzamientos de productos y características
+    - Datos de participación de mercado
+    - Reseñas y sentimiento de clientes
+    - Reportes y análisis de la industria
+
+    Entrega tus hallazgos como un objeto JSON con esta estructura:
+    {
+    "direct_competitors": [
+        {
+        "name": "...",
+        "url": "...",
+        "description": "...",
+        "strengths": ["..."],
+        "weaknesses": ["..."],
+        "market_position": "...",
+        "funding": "..."
+        }
+    ],
+    "indirect_competitors": [
+        {
+        "name": "...",
+        "type": "substitute|alternative",
+        "description": "...",
+        "why_competitive": "..."
+        }
+    ],
+    "market_structure": {
+        "type": "monopolistic|oligopolistic|fragmented|emerging",
+        "description": "...",
+        "key_players": ["..."]
+    },
+    "barriers": [
+        {
+        "type": "brand|network|technology|regulatory|capital",
+        "description": "...",
+        "severity": "high|medium|low"
+        }
+    ],
+    "white_space": ["oportunidad 1", "oportunidad 2", ...],
+    "sources": ["url 1", "url 2", ...]
+    }"""
+
+    previous_context = f"""
+    HALLAZGOS PREVIOS - OBSTÁCULOS:
+    {json.dumps(obstacles_findings, indent=2)}
+
+    HALLAZGOS PREVIOS - SOLUCIONES:
+    {json.dumps(solutions_findings, indent=2)}
+
+    HALLAZGOS PREVIOS - LEGAL:
+    {json.dumps(legal_findings, indent=2)}
+    """
+
+    user_prompt = f"""CONTEXTO DEL PROBLEMA:
+    {problem_context}
+
+    {previous_context}
+
+    Dado el problema y la investigación previa, por favor analiza el panorama \
+    competitivo. Usa búsqueda web para encontrar:
+    - Competidores directos e indirectos
+    - Estructura y dinámicas del mercado
+    - Barreras de entrada y ventajas competitivas
+    - Oportunidades y espacio blanco
+    - Desarrollos competitivos recientes
+
+    Proporciona información detallada y actualizada con fuentes."""
+
+    # Use Anthropic's built-in server-side web search
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 1
+        }
+    ]
+
+    print("=" * 80)
+    print("COMPETITOR AGENT: Calling Claude API with built-in web search...")
+    print("=" * 80)
+
+    response = anthropic.send_message(
+        messages=[ConversationMessage(
+            role="user",
+            content=user_prompt,
+            timestamp=datetime.utcnow().isoformat()
+        )],
+        system=system_prompt,
+        # tools=tools
+    )
+
+    return response
+
+def run_market_analysis(problem_context, obstacles_findings, solutions_findings, legal_findings, competitor_findings):
+    """
+    Analyze market dynamics using Claude with web search.
+    """
+    system_prompt = """Eres un analista de mercado experto especializado en \
+    dimensionamiento de mercado, tendencias y análisis de clientes.
+
+    Tu rol es investigar y cuantificar:
+    1. Tamaño de mercado - TAM (Total Addressable Market), SAM (Serviceable \
+    Addressable Market), SOM (Serviceable Obtainable Market)
+    2. Tendencias de crecimiento - tasas de crecimiento históricas, proyecciones, \
+    factores impulsores
+    3. Segmentos de clientes - quiénes son los compradores, sus características, \
+    necesidades y comportamientos
+    4. Benchmarks de precio - cuánto cuestan productos similares, modelos de \
+    precio, disposición a pagar
+
+    Para cada área, proporciona:
+    - Números específicos y puntos de datos con fuentes
+    - Desglose geográfico (global vs regional)
+    - Tendencias basadas en tiempo (históricas y proyectadas)
+    - Evidencia de soporte y metodología
+
+    Usa web_search para encontrar:
+    - Reportes de investigación de mercado y análisis de industria
+    - Finanzas de empresas y métricas
+    - Encuestas y reseñas de clientes
+    - Información de precios de sitios web de competidores
+    - Publicaciones y estadísticas de la industria
+
+    Entrega tus hallazgos como un objeto JSON con esta estructura:
+    {
+    "market_size": {
+        "tam": {"value": "...", "unit": "USD|users|...", "year": "...", "source": "..."},
+        "sam": {"value": "...", "unit": "...", "year": "...", "methodology": "..."},
+        "som": {"value": "...", "unit": "...", "year": "...", "assumptions": "..."}
+    },
+    "growth_trends": {
+        "historical_cagr": "...",
+        "projected_cagr": "...",
+        "time_period": "...",
+        "drivers": ["impulsor 1", "impulsor 2", ...],
+        "headwinds": ["viento en contra 1", "viento en contra 2", ...]
+    },
+    "customer_segments": [
+        {
+        "segment": "...",
+        "size": "...",
+        "characteristics": "...",
+        "needs": ["..."],
+        "buying_behavior": "..."
+        }
+    ],
+    "pricing_benchmarks": {
+        "range": "...",
+        "average": "...",
+        "models": ["subscription", "one-time", "usage-based", ...],
+        "examples": [
+        {"product": "...", "price": "...", "model": "..."}
+        ]
+    },
+    "sources": ["url 1", "url 2", ...]
+    }"""
+
+    previous_context = f"""
+    HALLAZGOS PREVIOS - OBSTÁCULOS:
+    {json.dumps(obstacles_findings, indent=2)}
+
+    HALLAZGOS PREVIOS - SOLUCIONES:
+    {json.dumps(solutions_findings, indent=2)}
+
+    HALLAZGOS PREVIOS - LEGAL:
+    {json.dumps(legal_findings, indent=2)}
+
+    HALLAZGOS PREVIOS - COMPETIDORES:
+    {json.dumps(competitor_findings, indent=2)}
+    """
+
+    user_prompt = f"""CONTEXTO DEL PROBLEMA:
+    {problem_context}
+
+    {previous_context}
+
+    Dado el problema y toda la investigación previa, por favor analiza las \
+    dinámicas del mercado. Usa búsqueda web para encontrar:
+    - Datos de tamaño de mercado y proyecciones
+    - Tasas de crecimiento y tendencias
+    - Segmentos y características de clientes
+    - Benchmarks y modelos de precio
+    - Reportes y estadísticas de la industria
+
+    Enfócate en datos cuantitativos con fuentes claras. Sé específico con \
+    números, períodos de tiempo y geografías."""
+
+    # Use Anthropic's built-in server-side web search
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 1
+        }
+    ]
+
+    print("=" * 80)
+    print("MARKET AGENT: Calling Claude API with built-in web search...")
+    print("=" * 80)
+
+    response = anthropic.send_message(
+        messages=[ConversationMessage(
+            role="user",
+            content=user_prompt,
+            timestamp=datetime.utcnow().isoformat()
+        )],
+        system=system_prompt,
+        # tools=tools
+    )
+
+    return response
 
 def generate_synthesis(problem_context, obstacles, solutions, legal, competitors, market):
     """
     Generate executive summary synthesizing all research findings.
     """
     system_prompt = """Eres un analista de negocios ejecutivo creando un informe \
-completo de investigación de mercado.
+    completo de investigación de mercado.
 
-Tu rol es sintetizar los hallazgos de 5 agentes de investigación en un resumen \
-ejecutivo claro y accionable.
+    Tu rol es sintetizar los hallazgos de 5 agentes de investigación en un resumen \
+    ejecutivo claro y accionable.
 
-El resumen debe:
-1. Comenzar con una breve declaración del problema
-2. Resumir los obstáculos y desafíos clave
-3. Analizar las soluciones existentes y sus brechas
-4. Destacar consideraciones legales/regulatorias críticas
-5. Evaluar el panorama competitivo
-6. Cuantificar la oportunidad de mercado
-7. Proporcionar recomendaciones estratégicas
+    El resumen debe:
+    1. Comenzar con una breve declaración del problema
+    2. Resumir los obstáculos y desafíos clave
+    3. Analizar las soluciones existentes y sus brechas
+    4. Destacar consideraciones legales/regulatorias críticas
+    5. Evaluar el panorama competitivo
+    6. Cuantificar la oportunidad de mercado
+    7. Proporcionar recomendaciones estratégicas
 
-Escribe en prosa clara y profesional. Usa viñetas para insights clave. \
-Enfócate en inteligencia accionable.
+    Escribe en prosa clara y profesional. Usa viñetas para insights clave. \
+    Enfócate en inteligencia accionable.
 
-Apunta a 800-1200 palabras. Incluye puntos de datos específicos y fuentes \
-cuando sea relevante."""
+    Apunta a 800-1200 palabras. Incluye puntos de datos específicos y fuentes \
+    cuando sea relevante."""
 
     all_findings = f"""
-CONTEXTO DEL PROBLEMA:
-{problem_context}
+    CONTEXTO DEL PROBLEMA:
+    {problem_context}
 
-HALLAZGOS DE OBSTÁCULOS:
-{json.dumps(obstacles, indent=2)}
+    HALLAZGOS DE OBSTÁCULOS:
+    {json.dumps(obstacles, indent=2)}
 
-HALLAZGOS DE SOLUCIONES:
-{json.dumps(solutions, indent=2)}
+    HALLAZGOS DE SOLUCIONES:
+    {json.dumps(solutions, indent=2)}
 
-HALLAZGOS LEGALES/REGULATORIOS:
-{json.dumps(legal, indent=2)}
+    HALLAZGOS LEGALES/REGULATORIOS:
+    {json.dumps(legal, indent=2)}
 
-PANORAMA COMPETITIVO:
-{json.dumps(competitors, indent=2)}
+    PANORAMA COMPETITIVO:
+    {json.dumps(competitors, indent=2)}
 
-ANÁLISIS DE MERCADO:
-{json.dumps(market, indent=2)}
-"""
+    ANÁLISIS DE MERCADO:
+    {json.dumps(market, indent=2)}
+    """
 
     user_prompt = f"""Por favor sintetiza los siguientes hallazgos de \
-investigación de mercado en un resumen ejecutivo completo.
+    investigación de mercado en un resumen ejecutivo completo.
 
-{all_findings}
+    {all_findings}
 
-Crea un informe bien estructurado que cuente la historia completa y \
-proporcione insights accionables."""
+    Crea un informe bien estructurado que cuente la historia completa y \
+    proporcione insights accionables."""
 
     logger.info("Generating synthesis with Claude API...")
 
     response = anthropic.send_message(
         messages=[ConversationMessage(
             role="user",
-            content=user_prompt
+            content=user_prompt,
+            timestamp=datetime.utcnow().isoformat()
         )],
         system=system_prompt
     )
 
-    # Extract text from response
-    synthesis_text = ""
-    for block in response.content:
-        if block.type == "text":
-            synthesis_text += block.text
-
-    return synthesis_text
+    return response

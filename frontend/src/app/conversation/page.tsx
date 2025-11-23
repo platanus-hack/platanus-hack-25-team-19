@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
-import { ArrowRight, ArrowUp, Edit3 } from "lucide-react";
+import { ArrowUp, Edit3 } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
@@ -282,7 +282,7 @@ export default function Conversation() {
       {/* Messages Container */}
       <div
         className={`flex-1 overflow-y-auto px-4 py-8 ${
-          temperature >= 6 && !continueRefining ? "pb-8" : "pb-[14rem]"
+          temperature >= 6 && !continueRefining ? "pb-8" : "pb-56"
         }`}
       >
         <div className="mx-auto max-w-3xl space-y-6">
@@ -342,7 +342,6 @@ export default function Conversation() {
             </div>
           )}
 
-          {/* Choice Component in Flow - Shows when threshold is reached */}
           {temperature >= 6 && !continueRefining && (
             <div className="pt-2">
               <div className="rounded-2xl border border-(--color-border) bg-(--color-background) shadow-xl p-6">
@@ -354,7 +353,6 @@ export default function Conversation() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Synthesize Option */}
                   <button
                     onClick={handleSynthesizeConversation}
                     className="cursor-pointer group relative overflow-hidden rounded-xl border-2 border-(--color-primary) bg-(--color-primary) hover:bg-(--color-primary-hover) p-6 text-left transition-all hover:shadow-xl hover:scale-105"
@@ -408,10 +406,7 @@ export default function Conversation() {
                   <div className="px-6 pt-5 pb-4 border-b border-(--color-border)">
                     {/* White to Purple Gradient Bar */}
                     <div className="relative h-2.5 w-full rounded-full bg-gray-800 overflow-hidden shadow-inner">
-                      {/* Background gradient track */}
-                      <div className="absolute inset-0 bg-gradient-to-r from-white via-[#9BA1E8] to-[#5E6AD2] opacity-30" />
-
-                      {/* Progress fill with animated gradient */}
+                      <div className="absolute inset-0 bg-linear-to-r from-white via-[#9BA1E8] to-primary opacity-30" />
                       <div
                         className="absolute inset-y-0 left-0 transition-all duration-500 ease-out rounded-full shadow-lg"
                         style={{
@@ -437,7 +432,7 @@ export default function Conversation() {
                       >
                         {/* Animated shimmer effect */}
                         {temperature < 7 && (
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-shimmer" />
+                          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white to-transparent opacity-30 animate-shimmer" />
                         )}
                       </div>
                     </div>
@@ -470,7 +465,7 @@ export default function Conversation() {
                         </span>
                       </div>
 
-                      {temperature >= 6 && continueRefining && (
+                      {(
                         <button
                           onClick={handleSynthesizeConversation}
                           className="cursor-pointer px-4 py-1.5 rounded-md bg-(--color-primary) hover:bg-(--color-primary-hover) text-white text-xs font-medium transition-all shadow-lg hover:shadow-xl animate-pulse"
@@ -488,7 +483,7 @@ export default function Conversation() {
                     <div className="relative flex items-end rounded-xl border border-(--color-input-border) bg-(--color-input-bg)">
                       <textarea
                         placeholder="Sigue profundizando..."
-                        className={`w-full bg-transparent px-5 py-4 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary) resize-none min-h-[56px] max-h-[200px] overflow-y-auto ${
+                        className={`w-full bg-transparent px-5 py-4 text-base text-(--color-text) outline-none placeholder:text-(--color-text-secondary) resize-none min-h-14 max-h-[200px] overflow-y-auto ${
                           inputValue.trim() || isLoading ? "pr-14" : ""
                         }`}
                         value={inputValue}
@@ -555,12 +550,12 @@ export default function Conversation() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="mx-4 max-w-2xl rounded-lg border border-(--color-border) bg-(--color-background) p-8 shadow-xl">
             <h2 className="mb-2 text-xl font-semibold text-(--color-text) w-full md:min-w-md">
-              Síntesis de la Conversación
+              Problema a resolver
             </h2>
             {!isSynthesisLoading && (
               <div className="mb-4 flex items-center gap-2 text-sm text-(--color-text-secondary)">
                 <Edit3 size={16} className="text-(--color-primary)" />
-                <p>Puedes modificar la síntesis antes de continuar</p>
+                <p>Puedes modificar el problema seleccionado antes de continuar</p>
               </div>
             )}
             <div className="mb-6 max-h-96 overflow-y-auto rounded-lg border-2 border-(--color-input-border) bg-(--color-input-bg) p-4 focus-within:border-(--color-primary) transition-colors">
