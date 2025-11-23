@@ -113,9 +113,9 @@ Donde:
 - "temperature": Número del 1 al 10 que evalúa qué tan cerca está el usuario de un problema real:
   * 1-2: Solo habla de soluciones sin problema claro
   * 3-4: Problema vago o superficial, sin cuantificación
-  * 5-6: Problema identificado pero sin impacto medible
-  * 7-8: Problema claro con algún impacto cuantificado
-  * 9-10: Problema crítico, bien cuantificado, con causa raíz identificada
+  * 5-6: Problema medianamente identificado
+  * 7-8: Problema identificado
+  * 9-10: Problema identificado, bien cuantificado, con causa raíz identificada
 
 Mantén un tono conversacional, empático y desafiante. Tu trabajo es ser un espejo que refleja el problema real.
 '''
