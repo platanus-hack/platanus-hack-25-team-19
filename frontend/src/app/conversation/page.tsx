@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import ReactMarkdown from "react-markdown";
 import { ArrowUp, Edit3 } from "lucide-react";
 import ProcessStepper from "@/components/ProcessStepper";
@@ -14,7 +14,7 @@ interface Message {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export default function Conversation() {
+function ConversationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentStep = useProcessStep();
@@ -641,5 +641,33 @@ export default function Conversation() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Conversation() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-(--color-background)">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="flex items-center space-x-2">
+            <div
+              className="h-3 w-3 animate-bounce rounded-full bg-(--color-primary)"
+              style={{ animationDelay: "0ms" }}
+            ></div>
+            <div
+              className="h-3 w-3 animate-bounce rounded-full bg-(--color-primary)"
+              style={{ animationDelay: "150ms" }}
+            ></div>
+            <div
+              className="h-3 w-3 animate-bounce rounded-full bg-(--color-primary)"
+              style={{ animationDelay: "300ms" }}
+            ></div>
+          </div>
+          <p className="text-sm text-(--color-text-secondary)">Cargando conversación...</p>
+        </div>
+      </div>
+    }>
+      <ConversationContent />
+    </Suspense>
   );
 }
