@@ -1,12 +1,43 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from shared.anthropic import Anthropic, ConversationMessage
 from shared.job_model import JobHandler
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+def extract_json_from_response(response_text: str) -> dict:
+    """
+    Extract JSON object from Claude's response which may contain markdown and other text.
+    Looks for ```json ... ``` blocks or standalone JSON objects.
+    """
+    if not response_text:
+        return {}
+
+    # Try to find JSON in code blocks first
+    json_match = re.search(r'```json\s*\n([\s\S]*?)\n```', response_text)
+    if json_match:
+        try:
+            return json.loads(json_match.group(1))
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse JSON from code block: {e}")
+
+    # Try to find standalone JSON object
+    json_match = re.search(r'\{[\s\S]*\}', response_text)
+    if json_match:
+        try:
+            return json.loads(json_match.group(0))
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse standalone JSON: {e}")
+
+    # If all else fails, return the raw text wrapped
+    logger.warning("Could not extract valid JSON from response, returning raw text")
+    return {"raw_response": response_text}
+
 
 # Get environment variables
 JOBS_TABLE_NAME = os.environ.get("JOBS_TABLE_NAME", "test-table")
@@ -88,45 +119,50 @@ def _execute_agents(instructions, session_id, job_id):
     """
     # Agent 1: Obstacles
     logger.info(f"Invoking Obstacles Agent for job {job_id}")
-    obstacles_findings = run_obstacles_analysis(instructions)
+    obstacles_response = run_obstacles_analysis(instructions)
+    obstacles_findings = extract_json_from_response(obstacles_response)
     logger.info(f"Obstacles Agent completed for job {job_id}")
 
     # Agent 2: Solutions
     logger.info(f"Invoking Solutions Agent for job {job_id}")
-    solutions_findings = run_solutions_analysis(instructions, obstacles_findings)
+    solutions_response = run_solutions_analysis(instructions, obstacles_findings)
+    solutions_findings = extract_json_from_response(solutions_response)
     logger.info(f"Solutions Agent completed for job {job_id}")
 
     # Agent 3: Legal
     logger.info(f"Invoking Legal Agent for job {job_id}")
-    legal_findings = run_legal_analysis(
+    legal_response = run_legal_analysis(
         instructions,
         obstacles_findings,
         solutions_findings,
     )
+    legal_findings = extract_json_from_response(legal_response)
     logger.info(f"Legal Agent completed for job {job_id}")
 
     # Agent 4: Competitor
     logger.info(f"Invoking Competitor Agent for job {job_id}")
-    competitor_findings = run_competitor_analysis(
+    competitor_response = run_competitor_analysis(
         instructions,
         obstacles_findings,
         solutions_findings,
         legal_findings,
     )
+    competitor_findings = extract_json_from_response(competitor_response)
     logger.info(f"Competitor Agent completed for job {job_id}")
 
     # Agent 5: Market
     logger.info(f"Invoking Market Agent for job {job_id}")
-    market_findings = run_market_analysis(
+    market_response = run_market_analysis(
         instructions,
         obstacles_findings,
         solutions_findings,
         legal_findings,
         competitor_findings,
     )
+    market_findings = extract_json_from_response(market_response)
     logger.info(f"Market Agent completed for job {job_id}")
 
-    # Synthesis: Generate executive summary
+    # Synthesis: Generate executive summary (keep as text, not JSON)
     logger.info(f"Generating synthesis for job {job_id}")
     synthesis = generate_synthesis(
         instructions,
@@ -137,7 +173,7 @@ def _execute_agents(instructions, session_id, job_id):
         market_findings,
     )
 
-    # Build final result
+    # Build final result - all findings are now proper JSON objects
     final_result = {
         "instructions": instructions,
         "findings": {
@@ -210,13 +246,13 @@ def run_obstacles_analysis(problem_context):
     # Use Anthropic's built-in server-side web search
     # Docs: https://platform.claude.com/docs/en/agents-and-tools/
     #       tool-use/web-search-tool
-    tools = [
-        {
-            "type": "web_search_20250305",
-            "name": "web_search",
-            "max_uses": 1  # Limit to 5 searches ($0.05 cost)
-        }
-    ]
+    # tools = [
+    #     {
+    #         "type": "web_search_20250305",
+    #         "name": "web_search",
+    #         "max_uses": 1  # Limit to 5 searches ($0.05 cost)
+    #     }
+    # ]
 
     print("=" * 80)
     print("Calling Claude API with built-in web search...")
@@ -233,6 +269,7 @@ def run_obstacles_analysis(problem_context):
     )
 
     return response
+
 
 def run_solutions_analysis(problem_context, obstacles_findings):
     """
@@ -294,13 +331,13 @@ def run_solutions_analysis(problem_context, obstacles_findings):
     Enfócate en encontrar ejemplos concretos del mundo real con fuentes."""
 
     # Use Anthropic's built-in server-side web search
-    tools = [
-        {
-            "type": "web_search_20250305",
-            "name": "web_search",
-            "max_uses": 1
-        }
-    ]
+    # tools = [
+    #     {
+    #         "type": "web_search_20250305",
+    #         "name": "web_search",
+    #         "max_uses": 1
+    #     }
+    # ]
 
     print("=" * 80)
     print("SOLUTIONS AGENT: Calling Claude API with built-in web search...")
@@ -317,6 +354,7 @@ def run_solutions_analysis(problem_context, obstacles_findings):
     )
 
     return response
+
 
 def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
     """
@@ -388,13 +426,13 @@ def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
     Proporciona información específica y accionable con fuentes."""
 
     # Use Anthropic's built-in server-side web search
-    tools = [
-        {
-            "type": "web_search_20250305",
-            "name": "web_search",
-            "max_uses": 1
-        }
-    ]
+    # tools = [
+    #     {
+    #         "type": "web_search_20250305",
+    #         "name": "web_search",
+    #         "max_uses": 1
+    #     }
+    # ]
 
     print("=" * 80)
     print("LEGAL AGENT: Calling Claude API with built-in web search...")
@@ -411,6 +449,7 @@ def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
     )
 
     return response
+
 
 def run_competitor_analysis(problem_context, obstacles_findings, solutions_findings, legal_findings):
     """
@@ -509,13 +548,13 @@ def run_competitor_analysis(problem_context, obstacles_findings, solutions_findi
     Proporciona información detallada y actualizada con fuentes."""
 
     # Use Anthropic's built-in server-side web search
-    tools = [
-        {
-            "type": "web_search_20250305",
-            "name": "web_search",
-            "max_uses": 1
-        }
-    ]
+    # tools = [
+    #     {
+    #         "type": "web_search_20250305",
+    #         "name": "web_search",
+    #         "max_uses": 1
+    #     }
+    # ]
 
     print("=" * 80)
     print("COMPETITOR AGENT: Calling Claude API with built-in web search...")
@@ -532,6 +571,7 @@ def run_competitor_analysis(problem_context, obstacles_findings, solutions_findi
     )
 
     return response
+
 
 def run_market_analysis(problem_context, obstacles_findings, solutions_findings, legal_findings, competitor_findings):
     """
@@ -628,13 +668,13 @@ def run_market_analysis(problem_context, obstacles_findings, solutions_findings,
     números, períodos de tiempo y geografías."""
 
     # Use Anthropic's built-in server-side web search
-    tools = [
-        {
-            "type": "web_search_20250305",
-            "name": "web_search",
-            "max_uses": 1
-        }
-    ]
+    # tools = [
+    #     {
+    #         "type": "web_search_20250305",
+    #         "name": "web_search",
+    #         "max_uses": 1
+    #     }
+    # ]
 
     print("=" * 80)
     print("MARKET AGENT: Calling Claude API with built-in web search...")
@@ -651,6 +691,7 @@ def run_market_analysis(problem_context, obstacles_findings, solutions_findings,
     )
 
     return response
+
 
 def generate_synthesis(problem_context, obstacles, solutions, legal, competitors, market):
     """
