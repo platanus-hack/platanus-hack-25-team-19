@@ -455,7 +455,7 @@ export default function Conversation() {
                         >
                           {temperature >= 7
                             ? "✓ Problema definido"
-                            : `${temperature}/7 - ${
+                            : `${
                                 temperature <= 2
                                   ? "Necesitamos más contexto"
                                   : temperature <= 4
