@@ -48,7 +48,7 @@ class Anthropic():
 
         payload = {
             'model': 'claude-sonnet-4-5-20250929',
-            'max_tokens': 4096 if tools else 1024,
+            'max_tokens': 4096,
             "thinking": {
                 "type": "disabled"
             },
