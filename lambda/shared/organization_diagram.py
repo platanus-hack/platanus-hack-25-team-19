@@ -216,6 +216,19 @@ ORGANIZATION_PEOPLE: List[Person] = [
             Project("Recommendation Engine", "Developed product recommendation system increasing sales by 22%"),
             Project("Data Warehouse Architecture", "Designed and implemented data warehouse for business analytics")
         ]
+    ),
+
+    # --- INDUSTRY SPECIALISTS ---
+    Person(
+        name="Gonzalo Cortéz",
+        email="jschenke@uc.cl",
+        role="Salmon Industry Expert",
+        role_description="Expert in salmon farming with extensive industry experience and participation in energy projects",
+        projects=[
+            Project("Sustainable Aquaculture Initiative", "Led sustainability program for salmon farming operations reducing environmental impact by 30%"),
+            Project("Energy Efficiency in Salmon Farms", "Implemented renewable energy solutions in salmon farming facilities"),
+            Project("Aquaculture Technology Innovation", "Developed IoT monitoring systems for water quality management")
+        ]
     )
 ]
 
