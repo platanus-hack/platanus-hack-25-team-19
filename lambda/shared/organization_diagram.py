@@ -221,7 +221,7 @@ ORGANIZATION_PEOPLE: List[Person] = [
     # --- INDUSTRY SPECIALISTS ---
     Person(
         name="Gonzalo Cortéz",
-        email="jschenke@uc.cl",
+        email="jschenke@copec.cl",
         role="Salmon Industry Expert",
         role_description="Expert in salmon farming with extensive industry experience and participation in energy projects",
         projects=[
