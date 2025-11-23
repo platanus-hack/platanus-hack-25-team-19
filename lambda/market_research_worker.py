@@ -20,7 +20,7 @@ def extract_json_from_response(response_text: str) -> dict:
 
     # Remove web search tags first
     cleaned_text = re.sub(r'<web_search>.*?</web_search>', '', response_text, flags=re.DOTALL)
-    
+
     # Try to find JSON in code blocks first
     json_match = re.search(r'```json\s*\n([\s\S]*?)\n```', cleaned_text)
     if json_match:
@@ -37,14 +37,14 @@ def extract_json_from_response(response_text: str) -> dict:
                 close_braces = json_str.count('}')
                 open_brackets = json_str.count('[')
                 close_brackets = json_str.count(']')
-                
+
                 # Add missing closures
                 repaired = json_str
                 for _ in range(open_brackets - close_brackets):
                     repaired += ']'
                 for _ in range(open_braces - close_braces):
                     repaired += '}'
-                
+
                 return json.loads(repaired)
             except Exception as repair_error:
                 logger.warning(f"Failed to repair JSON: {repair_error}")
@@ -92,7 +92,7 @@ def handler(event, context):
     Flow: Obstacles → Solutions → Legal → Competitor → Market → Synthesis
     """
     logger.info(f"Market Research Orchestrator received event: {json.dumps(event)}")
-    
+
     # Normal SQS processing with DynamoDB
     for record in event["Records"]:
         try:
@@ -113,7 +113,7 @@ def handler(event, context):
             logger.info(f"Starting market research orchestration for job {job_id} with status {job.status}")
 
             job_handler.mark_in_progress(session_id=session_id, job_id=job_id)
-            
+
             final_result = _execute_agents(job.instructions, session_id, job_id)
 
             # Mark as completed
@@ -219,7 +219,7 @@ def _execute_agents(instructions, session_id, job_id):
         "synthesis": synthesis,
         "completed_at": datetime.utcnow().isoformat(),
     }
-    
+
     return final_result
 
 
@@ -291,7 +291,7 @@ def run_obstacles_analysis(problem_context):
     print("Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic.send_message(
+    response = anthropic.create_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -301,7 +301,13 @@ def run_obstacles_analysis(problem_context):
         # tools=tools
     )
 
-    return response
+    # Extract only text content from response
+    text_response = ""
+    for block in response.content:
+        if block.type == "text":
+            text_response += block.text
+
+    return text_response
 
 
 def run_solutions_analysis(problem_context, obstacles_findings):
@@ -376,7 +382,7 @@ def run_solutions_analysis(problem_context, obstacles_findings):
     print("SOLUTIONS AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic_2.send_message(
+    response = anthropic_2.create_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -386,7 +392,13 @@ def run_solutions_analysis(problem_context, obstacles_findings):
         # tools=tools
     )
 
-    return response
+    # Extract only text content from response
+    text_response = ""
+    for block in response.content:
+        if block.type == "text":
+            text_response += block.text
+
+    return text_response
 
 
 def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
@@ -471,7 +483,7 @@ def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
     print("LEGAL AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic.send_message(
+    response = anthropic.create_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -481,7 +493,13 @@ def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
         # tools=tools
     )
 
-    return response
+    # Extract only text content from response
+    text_response = ""
+    for block in response.content:
+        if block.type == "text":
+            text_response += block.text
+
+    return text_response
 
 
 def run_competitor_analysis(problem_context, obstacles_findings, solutions_findings, legal_findings):
@@ -593,7 +611,7 @@ def run_competitor_analysis(problem_context, obstacles_findings, solutions_findi
     print("COMPETITOR AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic_2.send_message(
+    response = anthropic_2.create_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -603,7 +621,13 @@ def run_competitor_analysis(problem_context, obstacles_findings, solutions_findi
         # tools=tools
     )
 
-    return response
+    # Extract only text content from response
+    text_response = ""
+    for block in response.content:
+        if block.type == "text":
+            text_response += block.text
+
+    return text_response
 
 
 def run_market_analysis(problem_context, obstacles_findings, solutions_findings, legal_findings, competitor_findings):
@@ -713,7 +737,7 @@ def run_market_analysis(problem_context, obstacles_findings, solutions_findings,
     print("MARKET AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic.send_message(
+    response = anthropic.create_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -723,7 +747,13 @@ def run_market_analysis(problem_context, obstacles_findings, solutions_findings,
         # tools=tools
     )
 
-    return response
+    # Extract only text content from response
+    text_response = ""
+    for block in response.content:
+        if block.type == "text":
+            text_response += block.text
+
+    return text_response
 
 
 def generate_synthesis(problem_context, obstacles, solutions, legal, competitors, market):
@@ -781,7 +811,7 @@ def generate_synthesis(problem_context, obstacles, solutions, legal, competitors
 
     logger.info("Generating synthesis with Claude API...")
 
-    response = anthropic_2.send_message(
+    response = anthropic_2.create_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -790,4 +820,10 @@ def generate_synthesis(problem_context, obstacles, solutions, legal, competitors
         system=system_prompt
     )
 
-    return response
+    # Extract only text content from response
+    text_response = ""
+    for block in response.content:
+        if block.type == "text":
+            text_response += block.text
+
+    return text_response
