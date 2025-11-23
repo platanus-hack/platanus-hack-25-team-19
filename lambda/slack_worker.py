@@ -38,7 +38,7 @@ def generate_question(text):
             **Instrucciones de Contenido:**
             1.  Usa `contact.name` para el saludo (Ej: "Hola [Nombre]").
             2.  Menciona el `context_summary` como el motivo del mensaje.
-            3.  **Preguntas:** Si existen elementos en el array `questions`, es OBLIGATORIO formatearlos como una **lista de viñetas (bullet points)** separada del párrafo principal para garantizar claridad visual. No las redactes en un bloque de texto continuo.
+            3.  **Preguntas:** Si existen elementos en el array `questions`, es OBLIGATORIO formatearlos como una **lista de viñetas (bullet points)** separada del párrafo principal para garantizar claridad visual. No las redactes en un bloque de texto continuo. Siempre envía las preguntas en español.
 
             **Reglas de Salida (ESTRICTO):**
             * Tu respuesta debe ser **ÚNICAMENTE** el texto del mensaje final.
@@ -54,11 +54,11 @@ def generate_question(text):
         messages = [ConversationMessage(role="user", content=prompt, timestamp="")]
         response = anthropic_client.send_message(messages)
         return response
-    
+
     except Exception as e:
         print(f"AI Error: {e}")
         return None, None
-    
+
 def get_slack_user(email):
     return slack_client.get_user_by_email(email)
 
@@ -105,9 +105,9 @@ def lambda_handler(event, context):
                         channel=user_id,
                         text=f"🤖 *Action Required:*\n{question}\n_(Reply here)_"
                     )
-                    
+
                     # C. WRITE SEPARATION
-                    
+
                     # 1. Update Status in Jobs Table
                     job_handler.mark_in_progress(session_id=session_id, job_id=jobId)
 
