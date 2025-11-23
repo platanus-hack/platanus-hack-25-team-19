@@ -104,41 +104,13 @@ def conduct_expert_search(expert_profile: str, questions: List[str], context_sum
     # Generate search strategies using AI
     search_strategy = generate_search_strategy(expert_profile, questions, context_summary)
 
-    # Execute different search approaches
-    found_experts: List[Dict[str, Any]] = []
-    recommendations: List[Dict[str, Any]] = []
-
     results = {
         'expert_profile_needed': expert_profile,
         'questions_for_experts': questions,
         'search_strategy': search_strategy,
-        'found_experts': found_experts,
         'search_summary': '',
-        'recommendations': recommendations,
         'generated_at': datetime.utcnow().isoformat()
     }
-
-    try:
-        # LinkedIn-style professional search
-        linkedin_experts = search_linkedin_experts(search_strategy['professional_keywords'], expert_profile)
-        found_experts.extend(linkedin_experts)
-
-        # Academic search
-        academic_experts = search_academic_experts(search_strategy['academic_keywords'], expert_profile)
-        found_experts.extend(academic_experts)
-
-        # Industry directory search
-        industry_experts = search_industry_experts(search_strategy['industry_keywords'], expert_profile)
-        found_experts.extend(industry_experts)
-
-        # Generate AI-powered recommendations
-        recommendations.extend(generate_expert_recommendations(found_experts, questions, context_summary))
-        results['search_summary'] = generate_search_summary(results)
-
-    except Exception as e:
-        logger.error(f"Error in expert search: {e}")
-        results['error'] = str(e)
-        results['search_summary'] = f"La búsqueda de expertos externos encontró limitaciones técnicas: {str(e)}"
 
     return results
 
@@ -190,78 +162,12 @@ def generate_search_strategy(expert_profile: str, questions: List[str], context_
         logger.error(f"Error generating search strategy: {e}")
         # Fallback strategy
         return {
-            "professional_keywords": [expert_profile.split()[0] if expert_profile else "consultor"],
-            "academic_keywords": [expert_profile.split()[0] if expert_profile else "investigador"],
-            "industry_keywords": [expert_profile.split()[0] if expert_profile else "especialista"],
+            "professional_keywords": [expert_profile.split()[0] if expert_profile else None],
+            "academic_keywords": [expert_profile.split()[0] if expert_profile else None],
+            "industry_keywords": [expert_profile.split()[0] if expert_profile else None],
             "target_roles": ["consultor", "director", "especialista"],
             "target_industries": ["tecnología", "negocios", "consultoría"]
         }
-
-
-def search_linkedin_experts(keywords: List[str], expert_profile: str) -> List[Dict[str, Any]]:
-    """
-    Simulate LinkedIn expert search using AI-generated realistic profiles.
-    In production, this would integrate with LinkedIn API or web scraping.
-    """
-
-    # Generate realistic expert profiles using AI
-    linkedin_prompt = f"""
-    Genera 3-4 perfiles realistas de expertos en LinkedIn que coincidan con este perfil:
-
-    PERFIL BUSCADO: {expert_profile}
-    PALABRAS CLAVE: {', '.join(keywords)}
-
-    Para cada experto, proporciona:
-    - Nombre completo
-    - Título profesional actual
-    - Empresa actual
-    - Años de experiencia
-    - Especialidades clave
-    - Ubicación geográfica
-    - Breve resumen de expertise
-    - Por qué es relevante para el problema
-
-    Responde en español con perfiles verosímiles de profesionales latinoamericanos.
-    Formato JSON:
-    {{
-        "experts": [
-            {{
-                "name": "Nombre Completo",
-                "title": "Título Profesional",
-                "company": "Empresa Actual",
-                "experience_years": 10,
-                "specialties": ["especialidad1", "especialidad2"],
-                "location": "Ciudad, País",
-                "summary": "Breve descripción del expertise",
-                "relevance": "Por qué es relevante para el problema"
-            }}
-        ]
-    }}
-    """
-
-    try:
-        response = anthropic.send_message(
-            messages=[ConversationMessage(
-                role="user",
-                content=linkedin_prompt,
-                timestamp=datetime.utcnow().isoformat()
-            )],
-            system="Eres un especialista en búsqueda de talento que genera perfiles profesionales realistas y relevantes."
-        )
-
-        data = json.loads(response)
-        experts = data.get('experts', [])
-
-        # Add source information
-        for expert in experts:
-            expert['source'] = 'LinkedIn Professional Network'
-            expert['contact_method'] = 'LinkedIn InMail'
-
-        return experts
-
-    except Exception as e:
-        logger.error(f"Error generating LinkedIn experts: {e}")
-        return []
 
 
 def search_academic_experts(keywords: List[str], expert_profile: str) -> List[Dict[str, Any]]:
