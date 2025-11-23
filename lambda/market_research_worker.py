@@ -9,7 +9,6 @@ from shared.job_model import JobHandler
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
 def extract_json_from_response(response_text: str) -> dict:
     """
     Extract JSON object from Claude's response which may contain markdown, web search tags, and other text.
@@ -71,7 +70,6 @@ def extract_json_from_response(response_text: str) -> dict:
     logger.error(f"Could not extract valid JSON from response. First 500 chars: {response_text[:500]}")
     return {"error": "Could not parse agent response", "raw_preview": response_text[:500]}
 
-
 # Get environment variables
 JOBS_TABLE_NAME = os.environ.get("JOBS_TABLE_NAME", "test-table")
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
@@ -83,7 +81,6 @@ job_handler = JobHandler(JOBS_TABLE_NAME)
 # Initialize Anthropic client
 anthropic = Anthropic(api_key=ANTHROPIC_API_KEY)
 anthropic_2 = Anthropic(api_key=ANTHROPIC_API_KEY_2)
-
 
 def handler(event, context):
     """
@@ -114,7 +111,31 @@ def handler(event, context):
 
             job_handler.mark_in_progress(session_id=session_id, job_id=job_id)
 
-            final_result = _execute_agents(job.instructions, session_id, job_id)
+            # Parse instructions if it's a JSON string (from orchestrator)
+            instructions = job.instructions
+            if isinstance(instructions, str):
+                try:
+                    instructions_data = json.loads(instructions)
+                    # Extract the reason field which contains the problem description
+                    # The full payload is preserved for the final result
+                    if isinstance(instructions_data, dict) and 'reason' in instructions_data:
+                        problem_description = instructions_data['reason']
+                        logger.info("Extracted problem description from orchestrator payload")
+                    else:
+                        # Fallback: use the entire parsed data as string
+                        problem_description = json.dumps(instructions_data, indent=2)
+                        logger.warning("Instructions data doesn't have 'reason' field, using full payload")
+                    instructions_payload = instructions_data  # Keep original for final result
+                except json.JSONDecodeError:
+                    # If it's not JSON, use as-is (for backward compatibility)
+                    problem_description = instructions
+                    instructions_payload = instructions
+                    logger.info("Using instructions as plain string (backward compatibility)")
+            else:
+                problem_description = instructions
+                instructions_payload = instructions
+
+            final_result = _execute_agents(problem_description, instructions_payload, session_id, job_id)
 
             # Mark as completed
             job_handler.mark_completed(
@@ -145,27 +166,35 @@ def handler(event, context):
         "body": json.dumps("Successfully processed messages")
     }
 
-
-def _execute_agents(instructions, session_id, job_id):
+def _execute_agents(problem_description, instructions_payload, session_id, job_id):
     """
-    Execute all 5 agents sequentially and return the final result.
+    Execute all 5 agents sequentially and return the findings.
+
+    Args:
+        problem_description: The problem description string to pass to agents
+        instructions_payload: The original instructions payload (not currently used in result)
+        session_id: Session ID
+        job_id: Job ID
+
+    Returns:
+        dict: Findings object with keys: obstacles, solutions, legal, competitors, market
     """
     # Agent 1: Obstacles
     logger.info(f"Invoking Obstacles Agent for job {job_id}")
-    obstacles_response = run_obstacles_analysis(instructions)
+    obstacles_response = run_obstacles_analysis(problem_description)
     obstacles_findings = extract_json_from_response(obstacles_response)
     logger.info(f"Obstacles Agent completed for job {job_id}")
 
     # Agent 2: Solutions
     logger.info(f"Invoking Solutions Agent for job {job_id}")
-    solutions_response = run_solutions_analysis(instructions, obstacles_findings)
+    solutions_response = run_solutions_analysis(problem_description, obstacles_findings)
     solutions_findings = extract_json_from_response(solutions_response)
     logger.info(f"Solutions Agent completed for job {job_id}")
 
     # Agent 3: Legal
     logger.info(f"Invoking Legal Agent for job {job_id}")
     legal_response = run_legal_analysis(
-        instructions,
+        problem_description,
         obstacles_findings,
         solutions_findings,
     )
@@ -175,7 +204,7 @@ def _execute_agents(instructions, session_id, job_id):
     # Agent 4: Competitor
     logger.info(f"Invoking Competitor Agent for job {job_id}")
     competitor_response = run_competitor_analysis(
-        instructions,
+        problem_description,
         obstacles_findings,
         solutions_findings,
         legal_findings,
@@ -186,7 +215,7 @@ def _execute_agents(instructions, session_id, job_id):
     # Agent 5: Market
     logger.info(f"Invoking Market Agent for job {job_id}")
     market_response = run_market_analysis(
-        instructions,
+        problem_description,
         obstacles_findings,
         solutions_findings,
         legal_findings,
@@ -195,33 +224,17 @@ def _execute_agents(instructions, session_id, job_id):
     market_findings = extract_json_from_response(market_response)
     logger.info(f"Market Agent completed for job {job_id}")
 
-    # Synthesis: Generate executive summary (keep as text, not JSON)
-    logger.info(f"Generating synthesis for job {job_id}")
-    synthesis = generate_synthesis(
-        instructions,
-        obstacles_findings,
-        solutions_findings,
-        legal_findings,
-        competitor_findings,
-        market_findings,
-    )
-
-    # Build final result - all findings are now proper JSON objects
-    final_result = {
-        "instructions": instructions,
-        "findings": {
-            "obstacles": obstacles_findings,
-            "solutions": solutions_findings,
-            "legal": legal_findings,
-            "competitors": competitor_findings,
-            "market": market_findings,
-        },
-        "synthesis": synthesis,
-        "completed_at": datetime.utcnow().isoformat(),
+    # Build findings object to store in DynamoDB result field
+    findings_result = {
+        "obstacles": obstacles_findings,
+        "solutions": solutions_findings,
+        "legal": legal_findings,
+        "competitors": competitor_findings,
+        "market": market_findings,
     }
 
-    return final_result
-
+    logger.info(f"All agents completed successfully for job {job_id}")
+    return findings_result
 
 def run_obstacles_analysis(problem_context):
     """
@@ -291,7 +304,7 @@ def run_obstacles_analysis(problem_context):
     print("Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic.create_message(
+    response = anthropic.send_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -301,14 +314,7 @@ def run_obstacles_analysis(problem_context):
         # tools=tools
     )
 
-    # Extract only text content from response
-    text_response = ""
-    for block in response.content:
-        if block.type == "text":
-            text_response += block.text
-
-    return text_response
-
+    return response
 
 def run_solutions_analysis(problem_context, obstacles_findings):
     """
@@ -382,7 +388,7 @@ def run_solutions_analysis(problem_context, obstacles_findings):
     print("SOLUTIONS AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic_2.create_message(
+    response = anthropic_2.send_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -392,14 +398,7 @@ def run_solutions_analysis(problem_context, obstacles_findings):
         # tools=tools
     )
 
-    # Extract only text content from response
-    text_response = ""
-    for block in response.content:
-        if block.type == "text":
-            text_response += block.text
-
-    return text_response
-
+    return response
 
 def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
     """
@@ -483,7 +482,7 @@ def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
     print("LEGAL AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic.create_message(
+    response = anthropic.send_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -493,14 +492,7 @@ def run_legal_analysis(problem_context, obstacles_findings, solutions_findings):
         # tools=tools
     )
 
-    # Extract only text content from response
-    text_response = ""
-    for block in response.content:
-        if block.type == "text":
-            text_response += block.text
-
-    return text_response
-
+    return response
 
 def run_competitor_analysis(problem_context, obstacles_findings, solutions_findings, legal_findings):
     """
@@ -611,7 +603,7 @@ def run_competitor_analysis(problem_context, obstacles_findings, solutions_findi
     print("COMPETITOR AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic_2.create_message(
+    response = anthropic_2.send_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -621,14 +613,7 @@ def run_competitor_analysis(problem_context, obstacles_findings, solutions_findi
         # tools=tools
     )
 
-    # Extract only text content from response
-    text_response = ""
-    for block in response.content:
-        if block.type == "text":
-            text_response += block.text
-
-    return text_response
-
+    return response
 
 def run_market_analysis(problem_context, obstacles_findings, solutions_findings, legal_findings, competitor_findings):
     """
@@ -737,7 +722,7 @@ def run_market_analysis(problem_context, obstacles_findings, solutions_findings,
     print("MARKET AGENT: Calling Claude API with built-in web search...")
     print("=" * 80)
 
-    response = anthropic.create_message(
+    response = anthropic.send_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -747,14 +732,7 @@ def run_market_analysis(problem_context, obstacles_findings, solutions_findings,
         # tools=tools
     )
 
-    # Extract only text content from response
-    text_response = ""
-    for block in response.content:
-        if block.type == "text":
-            text_response += block.text
-
-    return text_response
-
+    return response
 
 def generate_synthesis(problem_context, obstacles, solutions, legal, competitors, market):
     """
@@ -811,7 +789,7 @@ def generate_synthesis(problem_context, obstacles, solutions, legal, competitors
 
     logger.info("Generating synthesis with Claude API...")
 
-    response = anthropic_2.create_message(
+    response = anthropic_2.send_message(
         messages=[ConversationMessage(
             role="user",
             content=user_prompt,
@@ -820,10 +798,4 @@ def generate_synthesis(problem_context, obstacles, solutions, legal, competitors
         system=system_prompt
     )
 
-    # Extract only text content from response
-    text_response = ""
-    for block in response.content:
-        if block.type == "text":
-            text_response += block.text
-
-    return text_response
+    return response
